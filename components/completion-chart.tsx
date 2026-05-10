@@ -30,9 +30,9 @@ export function CompletionChart() {
                            (habits?.filter(h => h.completedToday).length || 0) + 
                            (wellness?.filter(w => w.completed).length || 0)
       
-      // Add some variation for historical data visualization
+      // Add some variation for historical data visualization (deterministic to prevent hydration error)
       const baseRate = totalItems > 0 ? (completedItems / totalItems) * 100 : 20
-      const variation = Math.sin(i * 0.3) * 15 + Math.random() * 10 - 5
+      const variation = Math.sin(i * 0.3) * 15 + ((i % 5) * 2) - 5
       const completionRate = Math.max(0, Math.min(100, Math.round(baseRate + variation)))
       
       result.push({
@@ -46,6 +46,13 @@ export function CompletionChart() {
 
   const last7 = data.slice(-7)
   const weekly = Math.round(last7.reduce((acc, d) => acc + d.value, 0) / (last7.length || 1))
+
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
+  if (!mounted) {
+    return <Card className="rounded-3xl p-6 min-h-[300px] bg-gray-50/50 animate-pulse" />
+  }
 
   return (
     <Card className="rounded-3xl p-6">

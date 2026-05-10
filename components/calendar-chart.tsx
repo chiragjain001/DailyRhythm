@@ -26,7 +26,7 @@ export function CalendarChart() {
                            (wellness?.filter(w => w.completed).length || 0)
       
       const baseRate = totalItems > 0 ? (completedItems / totalItems) * 100 : 30
-      const variation = Math.sin(i * 0.5) * 20 + Math.random() * 15 - 7
+      const variation = Math.sin(i * 0.5) * 20 + ((i % 3) * 4) - 7
       const value = Math.max(0, Math.min(100, Math.round(baseRate + variation)))
       
       result.push({
@@ -39,6 +39,13 @@ export function CalendarChart() {
   }, [tasks, habits, wellness])
 
   const weeklyAverage = Math.round(data.reduce((acc, d) => acc + d.value, 0) / (data.length || 1))
+
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
+  if (!mounted) {
+    return <div className="rounded-3xl bg-white p-4 shadow min-h-[280px] animate-pulse" />
+  }
 
   return (
     <div className="rounded-3xl bg-white p-4 shadow">
