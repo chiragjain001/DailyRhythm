@@ -20,10 +20,14 @@ export function CalendarChart() {
       const date = startOfDay(subDays(new Date(), i))
       
       // Calculate completion rate based on current data with variation
-      const totalItems = (tasks?.length || 0) + (habits?.length || 0) + (wellness?.length || 0)
+      // Capped wellness logic for parity with global tracker
+      const totalWellnessItems = 4;
+      const completedWellnessItems = Math.min((wellness?.filter(w => w.completed).length || 0), 4);
+
+      const totalItems = (tasks?.length || 0) + (habits?.length || 0) + totalWellnessItems;
       const completedItems = (tasks?.filter(t => t.completed).length || 0) + 
                            (habits?.filter(h => h.completedToday).length || 0) + 
-                           (wellness?.filter(w => w.completed).length || 0)
+                           completedWellnessItems;
       
       const baseRate = totalItems > 0 ? (completedItems / totalItems) * 100 : 30
       const variation = Math.sin(i * 0.5) * 20 + Math.random() * 15 - 7

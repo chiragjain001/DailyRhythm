@@ -31,8 +31,8 @@ export function useSupabaseTasks() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
-        console.error('Auth error:', authError);
-        router.push('/auth');
+        console.warn('[SupabaseTasks] No session found, deferring auth enforcement to middleware');
+        setLoading(false);
         return;
       }
 

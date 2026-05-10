@@ -16,8 +16,8 @@ export function useSupabaseHabits() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
-        console.error('Auth error:', authError);
-        router.push('/auth');
+        console.warn('[SupabaseHabits] Session unavailable, relying on middleware safety');
+        setLoading(false);
         return;
       }
 

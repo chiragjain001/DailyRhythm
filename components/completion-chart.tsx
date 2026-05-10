@@ -25,10 +25,14 @@ export function CompletionChart() {
       
       // For now, use current data to simulate daily completion rates
       // In a real implementation, you'd query historical completion data from the database
-      const totalItems = (tasks?.length || 0) + (habits?.length || 0) + (wellness?.length || 0)
+      // Capped wellness logic for parity with global tracker
+      const totalWellnessItems = 4;
+      const completedWellnessItems = Math.min((wellness?.filter(w => w.completed).length || 0), 4);
+
+      const totalItems = (tasks?.length || 0) + (habits?.length || 0) + totalWellnessItems;
       const completedItems = (tasks?.filter(t => t.completed).length || 0) + 
                            (habits?.filter(h => h.completedToday).length || 0) + 
-                           (wellness?.filter(w => w.completed).length || 0)
+                           completedWellnessItems;
       
       // Add some variation for historical data visualization
       const baseRate = totalItems > 0 ? (completedItems / totalItems) * 100 : 20

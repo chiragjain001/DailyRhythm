@@ -17,8 +17,8 @@ export function useSupabaseWellness() {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
-        console.error('Auth error:', authError);
-        router.push('/auth');
+        console.warn('[SupabaseWellness] No active user session. Middleware handling enforced.');
+        setLoading(false);
         return;
       }
 
