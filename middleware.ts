@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
 
 // Define public paths that don't require authentication
 const publicPaths = [
@@ -20,141 +20,105 @@ const staticFilePatterns = [
 ];
 
 export async function middleware(req: NextRequest) {
-  let res = NextResponse.next({
-    request: {
-      headers: req.headers,
-    },
+  let supabaseResponse = NextResponse.next({
+    request: req,
   });
   
   const path = req.nextUrl.pathname;
 
-  // Allow static files and API routes
-  if (staticFilePatterns.some(pattern => path.startsWith(pattern)) || 
-      path.includes('.')) {
-    return res;
+  // 1. Immediate Allow for static files and API routes
+  if (staticFilePatterns.some(pattern => path.startsWith(pattern)) || path.includes('.')) {
+    return supabaseResponse;
   }
 
-  // Allow public paths
-  if (publicPaths.some(p => path.startsWith(p))) {
-    return res;
-  }
-
-  // Create Supabase client
+  // 2. Create Supabase server client with robust cookie handling
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return req.cookies.get(name)?.value;
+        getAll() {
+          return req.cookies.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
-          req.cookies.set({
-            name,
-            value,
-            ...options,
+        setAll(cookiesToSet) {
+          // Setting them on the request enables them to be available to down-stream hooks/loaders
+          cookiesToSet.forEach(({ name, value, options }) => req.cookies.set(name, value));
+          // Refresh response object to include newly mutated request context
+          supabaseResponse = NextResponse.next({
+            request: req,
           });
-          res = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
-          res.cookies.set({
-            name,
-            value,
-            ...options,
-          });
-        },
-        remove(name: string, options: CookieOptions) {
-          req.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
-          res = NextResponse.next({
-            request: {
-              headers: req.headers,
-            },
-          });
-          res.cookies.set({
-            name,
-            value: '',
-            ...options,
-          });
+          // Apply cookies to output response
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
         },
       },
     }
   );
-  
+
   try {
-    // Get current session with rate limiting protection
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error('Session error:', sessionError);
-      
-      // Handle rate limiting errors
-      if (sessionError.message?.includes('Request rate limit reached') || 
-          sessionError.code === 'over_request_rate_limit') {
-        console.warn('Rate limit reached in middleware, allowing request to proceed');
-        return res; // Allow request to proceed to avoid blocking users
+    // 3. Critical: Use getUser() instead of getSession() for robust secure validation and automated background refreshes
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    // Allow non-authenticated traffic through only on declared public paths
+    const isPublicPath = publicPaths.some(p => path.startsWith(p));
+
+    // 4. Handle redirect logic
+    if (!user) {
+      if (!isPublicPath) {
+        // Unauthorized user on private path -> redirect to auth
+        const redirectUrl = new URL('/auth', req.url);
+        redirectUrl.searchParams.set('redirectedFrom', path);
+        return NextResponse.redirect(redirectUrl);
       }
-      
-      // Handle JWT/user mismatch by clearing session and redirecting
-      if (sessionError.message?.includes('User from sub claim in JWT does not exist') ||
-          sessionError.message?.includes('Refresh Token Not Found')) {
-        const response = NextResponse.redirect(new URL('/auth', req.url));
-        // Clear auth cookies
-        response.cookies.delete('sb-access-token');
-        response.cookies.delete('sb-refresh-token');
-        return response;
-      }
-      
-      return NextResponse.redirect(new URL('/auth', req.url));
+      // Unauthorized but on a public path -> Allow
+      return supabaseResponse;
     }
 
-    // Redirect unauthenticated users to auth page
-    if (!session?.user) {
-      const redirectUrl = new URL('/auth', req.url);
-      redirectUrl.searchParams.set('redirectedFrom', path);
-      return NextResponse.redirect(redirectUrl);
-    }
+    // User is authorized below this point ─────────────────────────────
 
-    // Handle authenticated users trying to access auth page
+    // Prevent logged-in users from seeing login page again
     if (path === '/auth') {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
-    // Check profile completion for protected routes
+    // Perform profile check for major operational paths
     if (path === '/dashboard' || path.startsWith('/setup-profile')) {
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('profile_completed')
-        .eq('id', session.user.id)
+        .eq('id', user.id)
         .single();
 
+      // If profile fetch fails (e.g. database error or missing profile), defer to defaults safely
       const isProfileComplete = profile?.profile_completed;
 
-      // Redirect to setup if profile is not complete
+      // Path protection based on profile completion state
       if (!isProfileComplete && !path.startsWith('/setup-profile')) {
+        // Active session, incomplete profile -> force setup
         return NextResponse.redirect(new URL('/setup-profile', req.url));
       }
 
-      // Redirect to dashboard if profile is complete and user is on setup page
       if (isProfileComplete && path.startsWith('/setup-profile')) {
+        // Completed profile should not land back in setup
         return NextResponse.redirect(new URL('/dashboard', req.url));
       }
     }
 
-    return res;
+    // Return existing modified response preserving cookies and headers
+    return supabaseResponse;
+
   } catch (error) {
-    console.error('Middleware error:', error);
+    console.error('[Middleware] Error retrieving user context:', error);
+    // In extreme failure, default to the auth page safely
+    const isPublicPath = publicPaths.some(p => path.startsWith(p));
+    if (isPublicPath) return supabaseResponse;
     return NextResponse.redirect(new URL('/auth', req.url));
   }
 }
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
