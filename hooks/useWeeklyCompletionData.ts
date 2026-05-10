@@ -126,8 +126,9 @@ export function useWeeklyCompletionData() {
             const d = new Date(w.created_at);
             return d >= dayStart && d <= dayEnd;
           });
-          totalWellness = dayWellness.length;
-          completedWellness = dayWellness.filter(w => w.completed).length;
+          // Set total requirement to 4 as requested, and cap completion count at 4
+          totalWellness = 4;
+          completedWellness = Math.min(dayWellness.filter(w => w.completed).length, 4);
         }
 
         const totalItems = totalTasks + totalHabits + totalWellness;

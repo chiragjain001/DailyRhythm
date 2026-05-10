@@ -64,9 +64,11 @@ export function useSupabaseWellness() {
       setWellness(items);
       
       // Calculate completion percentage
-      const completedCount = items.filter(item => item.completed).length;
-      const targetCount = Math.max(1, items.length);
-      setCompletionPercentage(Math.round((completedCount / targetCount) * 100));
+      // Calculate completion percentage capped at required goal of 4
+      const REQUIRED_GOAL = 4;
+      const rawCompletedCount = items.filter(item => item.completed).length;
+      const cappedCompletedCount = Math.min(rawCompletedCount, REQUIRED_GOAL);
+      setCompletionPercentage(Math.round((cappedCompletedCount / REQUIRED_GOAL) * 100));
       
       setError(null);
     } catch (err) {
@@ -95,9 +97,11 @@ export function useSupabaseWellness() {
       );
       setWellness(updatedWellness);
       
-      const completedCount = updatedWellness.filter(item => item.completed).length;
-      const targetCount = Math.max(1, updatedWellness.length);
-      setCompletionPercentage(Math.round((completedCount / targetCount) * 100));
+      // Set target requirement to 4 as requested, and cap completion count at 4
+      const REQUIRED_GOAL = 4;
+      const rawCompletedCount = updatedWellness.filter(item => item.completed).length;
+      const cappedCompletedCount = Math.min(rawCompletedCount, REQUIRED_GOAL);
+      setCompletionPercentage(Math.round((cappedCompletedCount / REQUIRED_GOAL) * 100));
 
       const { error } = await supabase
         .from('wellness_checklist')
@@ -115,9 +119,11 @@ export function useSupabaseWellness() {
       );
       setWellness(revertedWellness);
       
-      const completedCount = revertedWellness.filter(item => item.completed).length;
-      const targetCount = Math.max(1, revertedWellness.length);
-      setCompletionPercentage(Math.round((completedCount / targetCount) * 100));
+      // Reset completion percent on error using fixed target
+      const REQUIRED_GOAL = 4;
+      const rawCompletedCount = revertedWellness.filter(item => item.completed).length;
+      const cappedCompletedCount = Math.min(rawCompletedCount, REQUIRED_GOAL);
+      setCompletionPercentage(Math.round((cappedCompletedCount / REQUIRED_GOAL) * 100));
       
       console.error('Error toggling wellness activity:', err);
       setError(err instanceof Error ? err.message : 'Failed to toggle wellness activity');

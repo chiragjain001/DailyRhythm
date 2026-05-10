@@ -86,9 +86,11 @@ export function useCompletionTracker(): CompletionData {
     const completedHabits = habits?.filter(habit => habit.completedToday).length || 0;
     const habitPercentage = totalHabits > 0 ? Math.round((completedHabits / totalHabits) * 100) : 0;
     
-    // Calculate wellness completion
-    const totalWellness = wellness?.length || 0;
-    const completedWellness = wellness?.filter(activity => activity.completed).length || 0;
+    // Calculate wellness completion capped at 4 target
+    const REQUIRED_WELLNESS = 4;
+    const totalWellness = REQUIRED_WELLNESS; 
+    const rawCompletedWellness = wellness?.filter(activity => activity.completed).length || 0;
+    const completedWellness = Math.min(rawCompletedWellness, REQUIRED_WELLNESS);
     
     // Use the wellness completion percentage from the hook
     const wellnessPercentage = wellnessCompletionPercentage || 0;
