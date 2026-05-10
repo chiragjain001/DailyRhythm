@@ -32,7 +32,30 @@ export function useSupabaseWellness() {
         throw error;
       }
 
-      const items = (data || []).map(w => ({
+      let currentData = data || [];
+
+      // Auto-seed logic: if user has no activities, create default presets instantly
+      if (!error && currentData.length === 0) {
+        const defaultItems = [
+          { user_id: user.id, activity: "Deep breathing", completed: false },
+          { user_id: user.id, activity: "Morning walk", completed: false },
+          { user_id: user.id, activity: "Drink water", completed: false },
+          { user_id: user.id, activity: "Read book", completed: false },
+          { user_id: user.id, activity: "Call friend", completed: false },
+          { user_id: user.id, activity: "Doodle sketch", completed: false }
+        ];
+
+        const { data: seededData, error: seedError } = await supabase
+          .from('wellness_checklist')
+          .insert(defaultItems)
+          .select();
+
+        if (!seedError && seededData) {
+          currentData = seededData;
+        }
+      }
+
+      const items = currentData.map(w => ({
         id: w.id,
         title: w.activity, // Map DB field 'activity' to UI field 'title'
         completed: w.completed
