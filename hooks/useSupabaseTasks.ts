@@ -210,9 +210,10 @@ export function useSupabaseTasks() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const uniqueId = Math.random().toString(36).substring(7);
       // Subscribe to real-time changes with user filtering
       channel = supabase
-        .channel('tasks_changes')
+        .channel(`tasks_changes_${uniqueId}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',

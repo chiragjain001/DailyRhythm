@@ -168,8 +168,9 @@ export function useSupabaseHabits() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const uniqueId = Math.random().toString(36).substring(7);
       habitsChannel = supabase
-        .channel('habits_changes_dash')
+        .channel(`habits_changes_dash_${uniqueId}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',

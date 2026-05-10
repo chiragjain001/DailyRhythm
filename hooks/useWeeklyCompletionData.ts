@@ -173,8 +173,10 @@ export function useWeeklyCompletionData() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const uniqueId = Math.random().toString(36).substring(7);
+
       const tasksChannel = supabase
-        .channel('wc_tasks')
+        .channel(`wc_tasks_${uniqueId}`)
         .on('postgres_changes', {
           event: '*', schema: 'public', table: 'tasks',
           filter: `user_id=eq.${user.id}`,
@@ -182,7 +184,7 @@ export function useWeeklyCompletionData() {
         .subscribe();
 
       const habitsChannel = supabase
-        .channel('wc_habits')
+        .channel(`wc_habits_${uniqueId}`)
         .on('postgres_changes', {
           event: '*', schema: 'public', table: 'habits',
           filter: `user_id=eq.${user.id}`,
@@ -190,7 +192,7 @@ export function useWeeklyCompletionData() {
         .subscribe();
 
       const wellnessChannel = supabase
-        .channel('wc_wellness')
+        .channel(`wc_wellness_${uniqueId}`)
         .on('postgres_changes', {
           event: '*', schema: 'public', table: 'wellness_checklist',
           filter: `user_id=eq.${user.id}`,

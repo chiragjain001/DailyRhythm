@@ -191,18 +191,23 @@ export function WeeklyCompletionChart() {
         </div>
 
         {/* ── Bar Chart ──────────────────────────────── */}
-        <div className="relative flex gap-1.5 sm:gap-2 items-end" style={{ height: 160 }}>
+        <div className="relative flex pl-6 gap-1.5 sm:gap-2 items-end" style={{ height: 160 }}>
 
           {/* Y-axis lines */}
           {[100, 75, 50, 25].map(pct => (
             <div
               key={pct}
-              className="absolute left-0 right-0 border-t border-gray-100 flex items-center"
+              className="absolute left-6 right-0 border-t border-gray-100 flex items-center"
               style={{ bottom: `${pct}%` }}
             >
-              <span className="text-[9px] text-gray-300 mr-1 -mt-2 w-5 text-right select-none">{pct}</span>
+              <span className="absolute -left-6 text-[9px] text-gray-300 w-5 text-right select-none -mt-px">
+                {pct}
+              </span>
             </div>
           ))}
+          
+          {/* X-axis baseline */}
+          <div className="absolute left-6 right-0 bottom-0 border-b border-gray-200" />
 
           {/* Bars */}
           {weekData.map((day, i) => {
@@ -252,7 +257,7 @@ export function WeeklyCompletionChart() {
         </div>
 
         {/* ── Day Labels ─────────────────────────────── */}
-        <div className="flex gap-1.5 sm:gap-2 mt-2">
+        <div className="flex pl-6 gap-1.5 sm:gap-2 mt-2">
           {weekData.map(day => (
             <div key={`lbl-${day.date.toISOString()}`} className="flex-1 text-center">
               <div

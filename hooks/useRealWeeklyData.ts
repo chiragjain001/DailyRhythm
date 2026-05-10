@@ -252,9 +252,11 @@ export function useRealWeeklyData() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const uniqueId = Math.random().toString(36).substring(7);
+
       // Subscribe to tasks changes
       const tasksChannel = supabase
-        .channel('weekly_tasks_changes')
+        .channel(`weekly_tasks_changes_${uniqueId}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -268,7 +270,7 @@ export function useRealWeeklyData() {
 
       // Subscribe to habit completions changes
       const habitCompletionsChannel = supabase
-        .channel('weekly_habit_completions_changes')
+        .channel(`weekly_habit_completions_changes_${uniqueId}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -282,7 +284,7 @@ export function useRealWeeklyData() {
 
       // Subscribe to wellness activities changes
       const wellnessChannel = supabase
-        .channel('weekly_wellness_changes')
+        .channel(`weekly_wellness_changes_${uniqueId}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',

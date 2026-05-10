@@ -114,8 +114,9 @@ export function useSupabaseWellness() {
       if (!user) return;
 
       // Subscribe to real-time changes in wellness_checklist
+      const uniqueId = Math.random().toString(36).substring(7);
       channel = supabase
-        .channel('wellness_checklist_changes')
+        .channel(`wellness_checklist_changes_${uniqueId}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
