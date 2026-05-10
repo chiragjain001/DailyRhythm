@@ -1,0 +1,76 @@
+{
+  "Activities": {
+    "mind_relaxation": [
+      "Deep breathing",
+      "Quick meditation",
+      "Gratitude journal",
+      "Positive affirmations",
+      "Power nap",
+      "Digital detox",
+      "Nature walk",
+      "Stretch break",
+      "Quiet reflection",
+      "Vision board"
+    ],
+    "physical_wellness": [
+      "Morning walk",
+      "Evening stroll",
+      "Light workout",
+      "Yoga session",
+      "Dance break",
+      "Push-up set",
+      "Jump rope",
+      "Squat challenge",
+      "Cycle ride",
+      "Sports play"
+    ],
+    "nutrition_health": [
+      "Drink water",
+      "Fruit snack",
+      "Veggie dish",
+      "Green tea",
+      "Healthy breakfast",
+      "Avoid sugar",
+      "Eat nuts",
+      "Herbal drink",
+      "Cook meal",
+      "Mindful eating"
+    ],
+    "learning_growth": [
+      "Read book",
+      "Listen podcast",
+      "Watch TEDTalk",
+      "Learn word",
+      "Practice coding",
+      "Skill practice",
+      "Journal ideas",
+      "Write notes",
+      "Daily review",
+      "Study topic"
+    ],
+    "social_connection": [
+      "Call friend",
+      "Hug family",
+      "Thank someone",
+      "Text hello",
+      "Compliment stranger",
+      "Share smile",
+      "Help neighbor",
+      "Encourage peer",
+      "Family chat",
+      "Meet friend"
+    ],
+    "creativity_fun": [
+      "Doodle sketch",
+      "Write poem",
+      "Play music",
+      "Cook recipe",
+      "Photography walk",
+      "Sing song",
+      "Craft work",
+      "Color mandala",
+      "Garden care",
+      "New hobby"
+    ]
+  }
+}
