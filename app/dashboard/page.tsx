@@ -4,13 +4,9 @@ import { Topbar } from "@/components/topbar"
 import { Panel1 } from "@/components/panel-1"
 import { Panel2 } from "@/components/panel-2"
 import { Panel3 } from "@/components/panel-3"
-import { NotificationScheduler } from "@/components/notification-scheduler"
 export default function DashboardPage() {
   return (
       <main className="h-screen overflow-hidden bg-neutral-100">
-        {/* Notification Scheduler - runs in background */}
-        <NotificationScheduler />
-        
         {/* Topbar */}
         <Topbar />
 

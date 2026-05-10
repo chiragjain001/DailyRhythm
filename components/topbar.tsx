@@ -10,7 +10,6 @@ import { format } from "date-fns"
 import { supabase } from "@/lib/supabaseClient"
 import { AccountModal } from "@/components/account-modal"
 import { DataExportModal } from "@/components/data-export-modal"
-import { NotificationToggle } from "@/components/notification-toggle"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -171,8 +170,6 @@ export function Topbar() {
 
           {/* Right section */}
           <div className="flex flex-1 justify-end items-center gap-3 px-2">
-            <NotificationToggle />
-            
             {/* Profile Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
