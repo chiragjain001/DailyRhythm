@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -22,10 +19,6 @@ const nextConfig = {
         ],
       },
     ];
-  },
-  webpack: (config, { dev, isServer }) => {
-    // Minimal webpack configuration to avoid module loading issues
-    return config;
   },
 }
 
