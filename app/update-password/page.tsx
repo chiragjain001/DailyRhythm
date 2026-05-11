@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 
 export default function UpdatePasswordPage() {
@@ -24,10 +23,16 @@ export default function UpdatePasswordPage() {
     try {
       if (password.length < 8) throw new Error('Password must be at least 8 characters.');
       if (password !== confirm) throw new Error('Passwords do not match.');
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      
+      // Mock update delay
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Implementation Note: In a real custom backend, you'd fetch('/api/auth/update-password', ...)
+      
       setMessage('Password updated. You can now log in.');
-      router.replace('/auth');
+      setTimeout(() => {
+        router.replace('/auth');
+      }, 2000);
     } catch (e: any) {
       setError(e?.message ?? 'Failed to update password');
     } finally {

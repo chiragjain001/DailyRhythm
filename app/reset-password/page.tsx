@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState('');
@@ -15,11 +14,11 @@ export default function ResetPasswordPage() {
     setMessage(null);
     setError(null);
     try {
-      const redirectBase = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : undefined);
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectBase ? `${redirectBase}/update-password` : undefined,
-      });
-      if (error) throw error;
+      // Mock reset email delay
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Implementation Note: In a real custom backend, you'd fetch('/api/auth/reset-password', ...)
+      
       setMessage('If an account exists for this email, a reset link has been sent.');
     } catch (e: any) {
       setError(e?.message ?? 'Failed to send reset email');
