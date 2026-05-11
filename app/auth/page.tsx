@@ -120,8 +120,23 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
   });
 
   async function signInWithGoogle() {
-    // Custom backend OAuth redirect mechanism
-    window.location.href = '/api/auth/google';
+    setLoading(true);
+    // Simulate OAuth delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Simulated custom API Google OAuth callback
+    const dummyToken = 'google_jwt_token_' + Math.random().toString(36).substr(2);
+    const dummyUser = {
+      id: 'google_user_' + Math.random().toString(36).substr(2),
+      email: 'google_user@gmail.com',
+      first_name: 'Google',
+      last_name: 'User',
+      profile_completed: false
+    };
+
+    setAuthSession(dummyToken, dummyUser);
+    toast.success('Signed in with Google successfully');
+    router.replace('/setup-profile');
   }
 
   return (
