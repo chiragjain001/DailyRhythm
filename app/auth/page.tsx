@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { setAuthSession, getCurrentUser } from '@/lib/auth-utils';
+import { supabase } from '@/lib/supabaseClient';
+
 
 // Force this page to be client-side only
 export const dynamic = 'force-dynamic';
@@ -120,23 +122,19 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
   });
 
   async function signInWithGoogle() {
-    setLoading(true);
-    // Simulate OAuth delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Simulated custom API Google OAuth callback
-    const dummyToken = 'google_jwt_token_' + Math.random().toString(36).substr(2);
-    const dummyUser = {
-      id: 'google_user_' + Math.random().toString(36).substr(2),
-      email: 'google_user@gmail.com',
-      first_name: 'Google',
-      last_name: 'User',
-      profile_completed: false
-    };
-
-    setAuthSession(dummyToken, dummyUser);
-    toast.success('Signed in with Google successfully');
-    router.replace('/setup-profile');
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      toast.error(err.message ?? 'Google sign-in failed');
+      setLoading(false);
+    }
   }
 
   return (
