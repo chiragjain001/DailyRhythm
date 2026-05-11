@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
-import { safeStorageWithFallback } from '@/lib/safeStorage';
+import { safeStorage } from '@/lib/safeStorage';
 
 interface LoadingContextType {
   isLoading: boolean;
@@ -27,7 +27,7 @@ export const LoadingProvider: React.FC<LoadingProviderProps> = ({ children }) =>
   // Handle initial page load
   useEffect(() => {
     // Check if this is the first load
-    const hasLoadedBefore = safeStorageWithFallback.getItem('app-has-loaded', 'session');
+    const hasLoadedBefore = safeStorage.getItem('app-has-loaded');
     
     if (!hasLoadedBefore) {
       // First time load - show React loader and hide CSS loader
@@ -47,7 +47,7 @@ export const LoadingProvider: React.FC<LoadingProviderProps> = ({ children }) =>
           setIsLoading(false);
           setIsInitialLoad(false);
           setLoadingMessage(undefined);
-          safeStorageWithFallback.setItem('app-has-loaded', 'true', 'session');
+          safeStorage.setItem('app-has-loaded', 'true');
           document.body.classList.add('app-ready');
         }, 800); // Give time for fonts, images, etc.
       };

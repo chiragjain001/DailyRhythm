@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useSupabase } from '@/components/supabase-provider';
+import { getCurrentUser } from '@/lib/auth-utils';
 import { getProfile, upsertProfile, uploadAvatar, checkUsernameAvailable, type ProfileRow } from '@/lib/profile';
 import Cropper from 'react-easy-crop';
 import { toast } from 'sonner';
@@ -23,7 +23,6 @@ type FormValues = z.infer<typeof schema>;
 
 export default function SetupProfilePage() {
   const router = useRouter();
-  const { supabase } = useSupabase();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +59,7 @@ export default function SetupProfilePage() {
     
     async function init() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await getCurrentUser();
         
         if (!user) {
           router.push('/auth');
@@ -97,7 +96,7 @@ export default function SetupProfilePage() {
 
     init();
     return () => { mounted = false; };
-  }, [router, setValue, supabase]);
+  }, [router, setValue]);
 
   // Check username availability with debounce
   useEffect(() => {
