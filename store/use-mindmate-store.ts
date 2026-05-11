@@ -68,7 +68,12 @@ interface MindmateState {
   setMood?: (date: Date, mood: Mood) => void
   toggleDailyActivity: (id: string) => void
   addActivity?: (a: Omit<ActivityLog, "id">) => void
-  // Note: tasks, habits, wellness, and user auth are now handled by Supabase hooks
+  tasks: Task[]
+  habits: Habit[]
+  wellness: WellnessItem[]
+  setTasks: (updater: Task[] | ((prev: Task[]) => Task[])) => void
+  setHabits: (updater: Habit[] | ((prev: Habit[]) => Habit[])) => void
+  setWellness: (updater: WellnessItem[] | ((prev: WellnessItem[]) => WellnessItem[])) => void
 }
 
 const uid = () => Math.random().toString(36).slice(2, 9)
@@ -137,11 +142,38 @@ export const useMindmateStore = create<MindmateState>()(
       selectedDate: new Date(new Date().toDateString()), // Normalize to start of day to avoid hydration mismatch
       dailyActivities: getDailyActivitiesSync(activitiesData),
       activities: [],
+      tasks: [],
+      habits: [],
+      wellness: [],
       moods: {},
-      setDate: (d) => set((s) => void (s.selectedDate = d)),
-      nextDay: () => set((s) => void (s.selectedDate = addDays(s.selectedDate, 1))),
-      prevDay: () => set((s) => void (s.selectedDate = addDays(s.selectedDate, -1))),
-      today: () => set((s) => void (s.selectedDate = new Date(new Date().toDateString()))),
+      setTasks: (updater) =>
+        set((s) => {
+          s.tasks = typeof updater === "function" ? updater(s.tasks as Task[]) : updater
+        }),
+      setHabits: (updater) =>
+        set((s) => {
+          s.habits = typeof updater === "function" ? updater(s.habits as Habit[]) : updater
+        }),
+      setWellness: (updater) =>
+        set((s) => {
+          s.wellness = typeof updater === "function" ? updater(s.wellness as WellnessItem[]) : updater
+        }),
+      setDate: (d) =>
+        set((s) => {
+          s.selectedDate = d
+        }),
+      nextDay: () =>
+        set((s) => {
+          s.selectedDate = addDays(s.selectedDate, 1)
+        }),
+      prevDay: () =>
+        set((s) => {
+          s.selectedDate = addDays(s.selectedDate, -1)
+        }),
+      today: () =>
+        set((s) => {
+          s.selectedDate = new Date(new Date().toDateString())
+        }),
       setMood: (date, mood) =>
         set((s) => {
           if (!s.moods) s.moods = {}

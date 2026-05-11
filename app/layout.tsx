@@ -1,7 +1,6 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
 import "./globals.css"
-import SupabaseProvider from "@/components/supabase-provider"
 import { LoadingProvider } from "@/contexts/loading-context"
 import { Toaster } from "sonner"
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration"
@@ -37,6 +36,18 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
+  openGraph: {
+    title: "MindSync",
+    description: "MindSync - Your productivity companion",
+    url: "https://mindsync-five.vercel.app",
+    siteName: "MindSync",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MindSync",
+    description: "MindSync - Your productivity companion",
+  },
 }
 
 export const viewport: Viewport = {
@@ -55,13 +66,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <SupabaseProvider>
-          <LoadingProvider>
-            <ServiceWorkerRegistration />
-            {children}
-            <Toaster />
-          </LoadingProvider>
-        </SupabaseProvider>
+        <LoadingProvider>
+          <ServiceWorkerRegistration />
+          {children}
+          <Toaster />
+        </LoadingProvider>
       </body>
     </html>
   )

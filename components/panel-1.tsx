@@ -6,7 +6,6 @@ import { CheckCircle2, Pause, Play, RotateCcw, Settings, Check, Clock, Edit2, Mi
 import { moodToEmoji, type Mood } from "@/store/use-mindmate-store"
 import { cn } from "@/lib/utils"
 import { useEffect, useMemo, useState } from "react"
-import { useIsMobile } from "@/hooks/use-mobile"
 
 type Phase = "work" | "break"
 
@@ -15,8 +14,6 @@ import { Pills } from "./pills"
 import { AgendaList } from "./agenda-list"
 
 export function Panel1() {
-  const isMobile = useIsMobile()
-  
   // States from FocusCard
   const [phase, setPhase] = useState<Phase>("work")
   const [workMin, setWorkMin] = useState(25)
@@ -73,20 +70,20 @@ export function Panel1() {
       <Card className="rounded-2xl shadow-md bg-[#1F2F4A] text-white flex-shrink-0 overflow-hidden">
         <CardContent className={cn(
           "relative flex flex-col pb-2",
-          isMobile ? "p-3 pb-2" : "p-4 md:p-6 pb-2"
+          "p-3 md:p-4 lg:p-6 pb-2"
         )}>
           {/* Status Badge - Responsive positioning */}
           <div className={cn(
             "absolute",
-            isMobile ? "right-3 top-3" : "right-4 top-4 md:right-6 md:top-6"
+            "right-3 top-3 md:right-4 md:top-4 lg:right-6 lg:top-6"
           )}>
             <div className={cn(
               "flex items-center justify-center rounded-full bg-lime-400/90 shadow",
-              isMobile ? "h-7 w-7" : "h-8 w-8 md:h-9 md:w-9"
+              "h-7 w-7 md:h-8 md:w-8 lg:h-9 lg:w-9"
             )}>
               <CheckCircle2 className={cn(
                 "text-[#1F2F4A]",
-                isMobile ? "h-4 w-4" : "h-4 w-4 md:h-5 md:w-5"
+                "h-4 w-4 md:h-5 md:w-5"
               )} />
             </div>
           </div>
@@ -94,27 +91,21 @@ export function Panel1() {
           {/* Main Content - Responsive layout */}
           <div className={cn(
             "flex gap-2 flex-1 min-h-0",
-            isMobile 
-              ? "flex-col items-center text-center" 
-              : "flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:text-left md:gap-4"
+            "flex-col items-center text-center sm:flex-row sm:items-center sm:justify-between sm:text-left sm:gap-3 md:gap-4"
           )}>
             {/* Text Content */}
             <div className={cn(
-              isMobile ? "order-2 mt-2" : "order-1"
+              "order-2 mt-2 sm:order-1 sm:mt-0"
             )}>
               <h2 className={cn(
                 "font-semibold leading-tight text-white",
-                isMobile 
-                  ? "text-base mb-1" 
-                  : "text-lg mb-1 sm:text-xl md:text-2xl"
+                "text-base mb-1 sm:text-xl md:text-2xl"
               )}>
                 Complete the Imp Task
               </h2>
               <p className={cn(
                 "text-white/80 line-clamp-2",
-                isMobile 
-                  ? "text-xs leading-tight max-w-[280px]" 
-                  : "text-xs leading-tight max-w-prose sm:text-sm/5"
+                "text-xs leading-tight max-w-[280px] sm:max-w-prose sm:text-sm/5"
               )}>
                 Use a calm space and your favorite playlist. Outline, draft, and polish in focused intervals.
               </p>
@@ -123,12 +114,12 @@ export function Panel1() {
             {/* Progress Ring - Responsive sizing */}
             <div className={cn(
               "order-1 flex-shrink-0",
-              isMobile ? "order-1" : "order-2"
+              "order-1 sm:order-2"
             )}>
               <div
                 className={cn(
                   "relative flex items-center justify-center rounded-full flex-shrink-0",
-                  isMobile ? "h-16 w-16" : "h-20 w-20 sm:h-24 sm:w-24"
+                  "h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24"
                 )}
                 style={{
                   background: `conic-gradient(#BEF264 ${progress * 360}deg, rgba(255,255,255,.15) 0deg)`,
@@ -140,13 +131,13 @@ export function Panel1() {
                 <div className="relative z-10 flex flex-col items-center">
                   <span className={cn(
                     "font-semibold text-white",
-                    isMobile ? "text-base" : "text-lg"
+                    "text-base sm:text-lg"
                   )}>
                     {mm}:{ss}
                   </span>
                   <span className={cn(
                     "text-white/70",
-                    isMobile ? "text-xs" : "text-xs"
+                    "text-xs"
                   )}>
                     {phase === "work" ? "Focus" : "Break"}
                   </span>
@@ -158,17 +149,13 @@ export function Panel1() {
           {/* Control Buttons - Responsive layout */}
           <div className={cn(
             "flex items-center gap-2 flex-shrink-0",
-            isMobile 
-              ? "mt-2 flex-wrap justify-center" 
-              : "mt-3 flex-row"
+            "mt-2 flex-wrap justify-center sm:mt-3 sm:flex-row"
           )}>
             <Button
               onClick={() => setRunning((r) => !r)}
               className={cn(
                 "rounded-full bg-lime-300 text-[#1F2F4A] hover:bg-lime-200 font-medium",
-                isMobile 
-                  ? "px-4 py-2 text-sm" 
-                  : "px-6 py-2"
+                "px-4 py-2 text-sm sm:px-6 sm:py-2"
               )}
             >
               {running ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
@@ -179,9 +166,7 @@ export function Panel1() {
               variant="secondary"
               className={cn(
                 "rounded-full bg-white/10 text-white hover:bg-white/20",
-                isMobile 
-                  ? "px-3 py-2" 
-                  : "px-4 py-2"
+                "px-3 py-2 sm:px-4"
               )}
               onClick={() => {
                 setPhase("work")
@@ -190,21 +175,19 @@ export function Panel1() {
               }}
             >
               <RotateCcw className="mr-1 h-4 w-4" /> 
-              {isMobile ? "" : "Reset"}
+              {"hidden sm:inline"}
             </Button>
             
             <Button
               variant="secondary"
               className={cn(
                 "rounded-full bg-white/10 text-white hover:bg-white/20",
-                isMobile 
-                  ? "px-3 py-2" 
-                  : "px-4 py-2"
+                "px-3 py-2 sm:px-4"
               )}
               onClick={() => setShowSettings((s) => !s)}
             >
               <Settings className="mr-1 h-4 w-4" /> 
-              {isMobile ? "" : "Intervals"}
+              {"hidden sm:inline"}
             </Button>
           </div>
 
@@ -212,9 +195,7 @@ export function Panel1() {
           {showSettings && (
             <div className={cn(
               "mt-2 text-sm flex-shrink-0",
-              isMobile 
-                ? "flex flex-col gap-2" 
-                : "flex items-center gap-3"
+              "flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3"
             )}>
               <label className="flex items-center gap-2">
                 <span className="text-white/90">Work</span>
@@ -226,9 +207,7 @@ export function Panel1() {
                   onChange={(e) => setWorkMin(Number(e.target.value))}
                   className={cn(
                     "rounded-md bg-white/10 text-white outline-none ring-1 ring-white/20 focus:ring-2 focus:ring-lime-400/50",
-                    isMobile 
-                      ? "w-14 px-2 py-1 text-sm" 
-                      : "w-16 px-2 py-1"
+                    "w-14 px-2 py-1 text-sm sm:w-16 sm:text-base"
                   )}
                 />
                 <span className="text-white/70">min</span>
@@ -244,9 +223,7 @@ export function Panel1() {
                   onChange={(e) => setBreakMin(Number(e.target.value))}
                   className={cn(
                     "rounded-md bg-white/10 text-white outline-none ring-1 ring-white/20 focus:ring-2 focus:ring-lime-400/50",
-                    isMobile 
-                      ? "w-14 px-2 py-1 text-sm" 
-                      : "w-16 px-2 py-1"
+                    "w-14 px-2 py-1 text-sm sm:w-16 sm:text-base"
                   )}
                 />
                 <span className="text-white/70">min</span>

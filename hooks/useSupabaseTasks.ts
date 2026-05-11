@@ -1,113 +1,50 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { Task } from '@/store/use-mindmate-store';
-import { useRouter } from 'next/navigation';
-
-interface SupabaseTask {
-  id: string;
-  user_id: string;
-  title: string;
-  assignee?: string;
-  time?: string;
-  priority: 'important' | 'today' | 'habit';
-  progress: number;
-  completed: boolean;
-  category?: string;
-  tags?: string[];
-  created_at: string;
-  updated_at: string;
-}
+import { useMindmateStore, Task } from '@/store/use-mindmate-store';
 
 export function useSupabaseTasks() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const tasks = useMindmateStore(state => state.tasks);
+  const setTasks = useMindmateStore(state => state.setTasks);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
-  // Fetch tasks from Supabase
+  // Fetch tasks from Custom Backend
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        console.warn('[SupabaseTasks] No session found, deferring auth enforcement to middleware');
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      const mappedTasks: Task[] = (data || []).map((task: SupabaseTask) => ({
-        id: task.id,
-        title: task.title,
-        assignee: task.assignee,
-        time: task.time,
-        priority: task.priority,
-        progress: task.progress,
-        completed: task.completed,
-        category: task.category || 'general',
-        tags: task.tags || [],
-        createdAt: task.created_at,
-      }));
-
-      setTasks(mappedTasks);
+      const res = await fetch('/api/tasks');
+      if (!res.ok) throw new Error('Failed to fetch tasks');
+      const data = await res.json();
+      setTasks(data.tasks || []);
       setError(null);
     } catch (err) {
       console.error('Error fetching tasks:', err);
+      // For demonstration in absence of real API, mock an empty array instead of failing
+      setTasks([]); 
       setError(err instanceof Error ? err.message : 'Failed to fetch tasks');
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, []);
 
   // Add a new task
   const addTask = useCallback(async (task: Omit<Task, 'id'>) => {
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        throw new Error('Not authenticated');
-      }
-
-      const { data, error } = await supabase
-        .from('tasks')
-        .insert([{
-          user_id: user.id,
-          title: task.title,
-          assignee: task.assignee,
-          time: task.time,
-          priority: task.priority,
-          progress: task.progress || 0,
-          completed: task.completed || false
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      const newTask: Task = {
-        id: data.id,
-        title: data.title,
-        assignee: data.assignee,
-        time: data.time,
-        priority: data.priority,
-        progress: data.progress,
-        completed: data.completed
-      };
-
+      // Optimistic update for immediate UI feedback
+      const tempId = 'temp_' + Date.now();
+      const newTask = { ...task, id: tempId } as Task;
       setTasks(prev => [newTask, ...prev]);
-      return newTask;
+
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task),
+      });
+      if (!res.ok) throw new Error('Failed to add task');
+      const data = await res.json();
+      
+      // Update with real ID
+      setTasks(prev => prev.map(t => t.id === tempId ? data.task : t));
+      return data.task;
     } catch (err) {
       console.error('Error adding task:', err);
       setError(err instanceof Error ? err.message : 'Failed to add task');
@@ -118,29 +55,19 @@ export function useSupabaseTasks() {
   // Update a task
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        throw new Error('Not authenticated');
-      }
-
-      const { data, error } = await supabase
-        .from('tasks')
-        .update(updates)
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
+      // Optimistic update
       setTasks(prev => prev.map(task => 
         task.id === id ? { ...task, ...updates } : task
       ));
 
-      return data;
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) throw new Error('Failed to update task');
+      const data = await res.json();
+      return data.task;
     } catch (err) {
       console.error('Error updating task:', err);
       setError(err instanceof Error ? err.message : 'Failed to update task');
@@ -148,21 +75,26 @@ export function useSupabaseTasks() {
     }
   }, []);
 
-  // Toggle task completion with optimistic updates for better mobile experience
+  // Toggle task completion
   const toggleTask = useCallback(async (id: string) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
-
-    // Optimistic update for immediate UI feedback
-    setTasks(prev => prev.map(t => 
-      t.id === id ? { ...t, completed: !t.completed, progress: !t.completed ? 1 : t.progress } : t
-    ));
-
+    
     try {
-      await updateTask(id, {
-        completed: !task.completed,
-        progress: !task.completed ? 1 : task.progress
+      // Optimistic update
+      setTasks(prev => prev.map(t => 
+        t.id === id ? { ...t, completed: !t.completed, progress: !t.completed ? 1 : t.progress } : t
+      ));
+
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          completed: !task.completed,
+          progress: !task.completed ? 1 : task.progress
+        }),
       });
+      if (!res.ok) throw new Error('Failed to toggle task');
     } catch (error) {
       // Revert on error
       setTasks(prev => prev.map(t => 
@@ -170,28 +102,14 @@ export function useSupabaseTasks() {
       ));
       setError('Failed to update task');
     }
-  }, [tasks, updateTask]);
+  }, [tasks]);
 
   // Delete a task
   const deleteTask = useCallback(async (id: string) => {
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        throw new Error('Not authenticated');
-      }
-
-      const { error } = await supabase
-        .from('tasks')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
-
-      if (error) {
-        throw error;
-      }
-
       setTasks(prev => prev.filter(task => task.id !== id));
+      const res = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete task');
     } catch (err) {
       console.error('Error deleting task:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete task');
@@ -199,40 +117,8 @@ export function useSupabaseTasks() {
     }
   }, []);
 
-  // Set up real-time subscription
   useEffect(() => {
-    let channel: any;
-    
-    const setupRealtimeSubscription = async () => {
-      await fetchTasks();
-      
-      // Get current user for filtering
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const uniqueId = Math.random().toString(36).substring(7);
-      // Subscribe to real-time changes with user filtering
-      channel = supabase
-        .channel(`tasks_changes_${uniqueId}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'tasks',
-          filter: `user_id=eq.${user.id}`
-        }, (payload) => {
-          console.log('🔄 Real-time task change detected:', payload);
-          fetchTasks();
-        })
-        .subscribe();
-    };
-    
-    setupRealtimeSubscription();
-
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
+    fetchTasks();
   }, [fetchTasks]);
 
   return {

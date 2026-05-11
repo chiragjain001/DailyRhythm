@@ -1,5 +1,4 @@
-import { supabase } from '@/lib/supabaseClient';
-import { User } from '@supabase/supabase-js';
+import { safeStorage } from './safeStorage';
 
 export interface AuthUser {
   id: string;
@@ -11,50 +10,37 @@ export interface AuthUser {
   profile_completed?: boolean;
 }
 
+const TOKEN_KEY = 'mindsync_token';
+const USER_KEY = 'mindsync_user';
+
 export async function getCurrentUser(): Promise<AuthUser | null> {
+  if (typeof window === 'undefined') return null;
+  const userStr = safeStorage.getItem(USER_KEY);
+  if (!userStr) return null;
   try {
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    // Handle JWT/user mismatch error
-    if (sessionError?.message?.includes('User from sub claim in JWT does not exist')) {
-      console.warn('Invalid JWT detected, clearing session...');
-      await supabase.auth.signOut();
-      return null;
-    }
-    
-    if (sessionError) {
-      console.error('Session error:', sessionError);
-      return null;
-    }
-    
-    if (!session?.user) return null;
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single();
-
-    return {
-      id: session.user.id,
-      email: session.user.email,
-      ...profile
-    };
-  } catch (error: any) {
-    console.error('Error getting current user:', error);
-    
-    // Handle JWT errors by clearing the session
-    if (error?.message?.includes('User from sub claim in JWT does not exist')) {
-      await supabase.auth.signOut();
-    }
-    
+    return JSON.parse(userStr);
+  } catch {
     return null;
   }
 }
 
+export function setAuthSession(token: string, user: AuthUser) {
+  safeStorage.setItem(TOKEN_KEY, token);
+  safeStorage.setItem(USER_KEY, JSON.stringify(user));
+  
+  // Also set cookie for middleware to instantly read for route protection
+  document.cookie = `auth_token=${token}; path=/; max-age=604800; samesite=lax`;
+}
+
 export async function signOut(): Promise<void> {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
+  safeStorage.removeItem(TOKEN_KEY);
+  safeStorage.removeItem(USER_KEY);
+  // Clear the cookie instantly
+  document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  
+  if (typeof window !== 'undefined') {
+    window.location.href = '/auth';
+  }
 }
 
 export async function redirectToAuth(): Promise<void> {

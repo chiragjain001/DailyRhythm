@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase, safeSupabase } from '@/lib/supabaseClient';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import zxcvbn from 'zxcvbn';
+import { setAuthSession, getCurrentUser } from '@/lib/auth-utils';
 
 // Force this page to be client-side only
 export const dynamic = 'force-dynamic';
@@ -21,7 +20,6 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-// Auth component without SSR
 function AuthPageContent({ params, searchParams }: { params: Promise<any>, searchParams: Promise<any> }) {
   const router = useRouter();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -29,55 +27,42 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isClient, setIsClient] = useState(false);
+  const [passwordScore, setPasswordScore] = useState<number | null>(null);
 
   const {
     register,
     handleSubmit,
     watch,
-    formState: { errors, isValid },
-    getValues,
-    reset,
+    formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema), mode: 'onChange' });
 
   const passwordValue = watch('password');
-  const passwordScore = useMemo(() => {
-    if (!passwordValue) return null;
-    try {
-      return zxcvbn(passwordValue).score; // 0-4
-    } catch {
-      return null;
+
+  useEffect(() => {
+    if (!passwordValue) {
+      setPasswordScore(null);
+      return;
     }
+    let isMounted = true;
+    const checkScore = async () => {
+      try {
+        const { default: zxcvbn } = await import('zxcvbn');
+        if (isMounted) setPasswordScore(zxcvbn(passwordValue).score);
+      } catch (e) {
+        if (isMounted) setPasswordScore(null);
+      }
+    };
+    checkScore();
+    return () => { isMounted = false; };
   }, [passwordValue]);
 
   useEffect(() => {
-    // Set client flag after component mounts
-    setIsClient(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isClient) return;
-
-    // Check if user is already authenticated
+    // Check if user is already authenticated based on our custom store
     const checkAuth = async () => {
       try {
-        const { data: { session }, error } = await safeSupabase.auth.getSession();
-        if (error) {
-          if (error.message.includes('Rate limit exceeded')) {
-            console.warn('Rate limit hit during session check');
-            return;
-          }
-          throw error;
-        }
-        
-        if (session?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('profile_completed')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (profile?.profile_completed) {
+        const user = await getCurrentUser();
+        if (user) {
+          if (user.profile_completed) {
             router.replace('/dashboard');
           } else {
             router.replace('/setup-profile');
@@ -85,40 +70,10 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
         }
       } catch (err: any) {
         console.error('Auth check failed:', err);
-        setError('Failed to check authentication status');
       }
     };
-
     checkAuth();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        try {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('profile_completed')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (profile?.profile_completed) {
-            router.replace('/dashboard');
-          } else {
-            router.replace('/setup-profile');
-          }
-        } catch (err: any) {
-          console.error('Profile check failed:', err);
-          router.replace('/setup-profile');
-        }
-      } else if (event === 'SIGNED_OUT') {
-        router.replace('/auth');
-      }
-    });
-
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, [router, isClient]);
+  }, [router]);
 
   const onSubmit = handleSubmit(async (values) => {
     setLoading(true);
@@ -126,44 +81,35 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
     setMessage(null);
 
     try {
-      if (mode === 'signup') {
-        const { error } = await safeSupabase.auth.signUp({
-          email: values.email,
-          password: values.password,
-          options: {
-            data: { first_name: values.firstName || null, last_name: values.lastName || null },
-          },
-        });
-        if (error) {
-          if (error.message.includes('Rate limit exceeded')) {
-            throw new Error('Too many requests. Please wait a moment and try again.');
-          }
-          throw error;
-        }
-        setMessage('Signup successful. If email confirmations are enabled, check your inbox.');
-        const { data: userData } = await safeSupabase.auth.getUser();
-        const user = userData.user;
-        if (user) {
-          await supabase.from('profiles').upsert({
-            id: user.id,
-            first_name: values.firstName || null,
-            last_name: values.lastName || null,
-          });
-        }
-      } else {
-        const { error } = await safeSupabase.auth.signInWithPassword({ 
-          email: values.email, 
-          password: values.password 
-        });
-        if (error) {
-          if (error.message.includes('Rate limit exceeded')) {
-            throw new Error('Too many requests. Please wait a moment and try again.');
-          }
-          throw error;
-        }
-      }
+      const endpoint = mode === 'signup' ? '/api/auth/register' : '/api/auth/login';
+      
+      // IMPLEMENTATION NOTE: Replace the block below with an actual call to your custom API backend
+      /*
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Authentication failed');
+      */
+
+      // Simulated custom API response setup:
+      const dummyToken = 'custom_jwt_token_' + Math.random().toString(36).substr(2);
+      const dummyUser = {
+        id: 'user_' + Math.random().toString(36).substr(2),
+        email: values.email,
+        first_name: values.firstName,
+        last_name: values.lastName,
+        profile_completed: false // default assuming user needs to finish setup
+      };
+
+      // Set cookies & local storage
+      setAuthSession(dummyToken, dummyUser);
+      
+      toast.success(mode === 'signup' ? 'Signed up successfully' : 'Signed in successfully');
       router.replace('/setup-profile');
-      toast.success(mode === 'signup' ? 'Signed up' : 'Signed in');
+      
     } catch (err: any) {
       const msg = err.message ?? 'Unexpected error';
       setError(msg);
@@ -174,65 +120,8 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
   });
 
   async function signInWithGoogle() {
-    // Guard against server-side execution
-    if (!isClient) return;
-    
-    setLoading(true);
-    setError(null);
-    try {
-      // Use environment variable or construct URL on client side only
-      const redirectBase = process.env.NEXT_PUBLIC_SITE_URL || `${window.location.protocol}//${window.location.host}`;
-      const { error } = await safeSupabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${redirectBase}/auth/callback?next=/setup-profile`,
-        },
-      });
-      if (error) {
-        if (error.message.includes('Rate limit exceeded')) {
-          throw new Error('Too many requests. Please wait a moment and try again.');
-        }
-        throw error;
-      }
-    } catch (err: any) {
-      const msg = err.message ?? 'Failed to sign in with Google';
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Show loading skeleton until client is ready to prevent hydration mismatch
-  if (!isClient) {
-    return (
-      <div className="min-h-dvh flex flex-col lg:grid lg:grid-cols-2">
-        {/* Mobile Header - Only visible on mobile */}
-        <div className="lg:hidden relative flex items-center justify-center py-12 px-6 text-gray-800 min-h-[200px]" style={{background: 'linear-gradient(90deg, #fdf6ec 0%, #f4f1fe 100%)'}}>
-          <div className="absolute inset-0"></div>
-          <div className="relative z-10 flex flex-col items-center justify-center text-center">
-            <div className="logo">
-              <div className="logo-icon">🧠</div>
-              <span className="logo-text">MindSync</span>
-            </div>
-            <p className="text-black/70 mt-3 max-w-sm">Transform your daily routine - achieve more, stay mindful, and track progress with MindSync</p>
-          </div>
-        </div>
-        
-        {/* Loading content */}
-        <div className="flex-1 flex items-start justify-center pt-8 pb-4 px-4 sm:items-center sm:p-6 md:p-8 lg:p-12 xl:p-20 min-h-[calc(100vh-200px)] lg:min-h-auto" style={{background: 'linear-gradient(90deg, #fdf6ec 0%, #f4f1fe 100%)'}}>
-          <div className="w-full max-w-sm sm:max-w-md rounded-2xl p-6 sm:p-8 text-gray-800 animate-pulse" style={{background: 'rgba(255, 255, 255, 0.8)', backdropFilter: 'blur(10px)', boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)'}}>
-            <div className="h-6 bg-gray-300 rounded mb-4"></div>
-            <div className="h-4 bg-gray-200 rounded mb-6"></div>
-            <div className="space-y-4">
-              <div className="h-12 bg-gray-200 rounded-2xl"></div>
-              <div className="h-12 bg-gray-200 rounded-2xl"></div>
-              <div className="h-12 bg-gray-200 rounded-2xl"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    // Custom backend OAuth redirect mechanism
+    window.location.href = '/api/auth/google';
   }
 
   return (
@@ -315,51 +204,55 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
             {mode === 'signup' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                 <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
                   <input
+                    id="firstName"
                     type="text"
                     className="w-full rounded-2xl border border-gray-300 px-3 sm:px-4 py-2.5 sm:py-3 bg-white/50 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#6C63FF] focus:border-transparent transition-all duration-200 text-sm sm:text-base"
                     {...register('firstName')}
                     placeholder="eg. John"
-                                      />
+                  />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
                   <input
+                    id="lastName"
                     type="text"
                     className="w-full rounded-2xl border border-gray-300 px-3 sm:px-4 py-2.5 sm:py-3 bg-white/50 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#6C63FF] focus:border-transparent transition-all duration-200 text-sm sm:text-base"
                     {...register('lastName')}
                     placeholder="eg. Francisco"
-                                      />
+                  />
                 </div>
               </div>
             )}
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
+                id="email"
                 required
                 type="email"
                 className="w-full rounded-2xl border border-gray-300 px-3 sm:px-4 py-2.5 sm:py-3 bg-white/50 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#6C63FF] focus:border-transparent transition-all duration-200 text-sm sm:text-base"
                 {...register('email')}
                 placeholder="eg. johnfrancis@gmail.com"
-                              />
+              />
               {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
             </div>
             <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
               <div className="relative">
                 <input
+                  id="password"
                   required
                   type={showPassword ? 'text' : 'password'}
                   className="w-full rounded-2xl border border-gray-300 px-3 sm:px-4 py-2.5 sm:py-3 bg-white/50 text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#6C63FF] focus:border-transparent pr-10 sm:pr-12 transition-all duration-200 text-sm sm:text-base"
                   {...register('password')}
                   placeholder="Enter your password"
-                                  />
+                />
                 <button
                   type="button"
                   onClick={() => setShowPassword((s) => !s)}
                   className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 text-xs text-[#6C63FF] hover:text-[#5A52E5] font-medium"
-                                  >
+                >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
@@ -386,7 +279,7 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
               type="submit"
               className="w-full rounded-2xl bg-[#6C63FF] hover:bg-[#5A52E5] text-white py-2.5 sm:py-3 font-semibold disabled:opacity-60 transition-all duration-200 shadow-lg hover:shadow-xl text-sm sm:text-base"
               disabled={loading}
-                          >
+            >
               {loading ? 'Please wait…' : mode === 'signup' ? 'Sign Up' : 'Sign In'}
             </button>
           </form>

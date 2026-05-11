@@ -1,124 +1,37 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server'
 
-// Define public paths that don't require authentication
-const publicPaths = [
-  '/auth',
-  '/auth/callback',
-  '/reset-password',
-  '/update-password'
-];
+export async function middleware(request: NextRequest) {
+  // Check for the custom auth token cookie set by our auth utility
+  const authToken = request.cookies.get('auth_token')?.value
 
-// Define static file patterns
-const staticFilePatterns = [
-  '/_next/',
-  '/favicon.ico',
-  '/images/',
-  '/icons/',
-  '/api/'
-];
+  // Protect routes like /dashboard, /wellness, /habits, /agenda
+  const protectedRoutes = ['/dashboard', '/wellness', '/habits', '/agenda', '/setup-profile']
+  const isProtectedRoute = protectedRoutes.some(route => request.nextUrl.pathname.startsWith(route))
 
-export async function middleware(req: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request: req,
-  });
-  
-  const path = req.nextUrl.pathname;
-
-  // 1. Immediate Allow for static files and API routes
-  if (staticFilePatterns.some(pattern => path.startsWith(pattern)) || path.includes('.')) {
-    return supabaseResponse;
+  if (isProtectedRoute && !authToken) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth'
+    return NextResponse.redirect(url)
   }
 
-  // 2. Create Supabase server client with robust cookie handling
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          // Setting them on the request enables them to be available to down-stream hooks/loaders
-          cookiesToSet.forEach(({ name, value, options }) => req.cookies.set(name, value));
-          // Refresh response object to include newly mutated request context
-          supabaseResponse = NextResponse.next({
-            request: req,
-          });
-          // Apply cookies to output response
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
-
-  try {
-    // 3. Critical: Use getUser() instead of getSession() for robust secure validation and automated background refreshes
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    // Allow non-authenticated traffic through only on declared public paths
-    const isPublicPath = publicPaths.some(p => path.startsWith(p));
-
-    // 4. Handle redirect logic
-    if (!user) {
-      if (!isPublicPath) {
-        // Unauthorized user on private path -> redirect to auth
-        const redirectUrl = new URL('/auth', req.url);
-        redirectUrl.searchParams.set('redirectedFrom', path);
-        return NextResponse.redirect(redirectUrl);
-      }
-      // Unauthorized but on a public path -> Allow
-      return supabaseResponse;
-    }
-
-    // User is authorized below this point ─────────────────────────────
-
-    // Prevent logged-in users from seeing login page again
-    if (path === '/auth') {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-
-    // Perform profile check for major operational paths
-    if (path === '/dashboard' || path.startsWith('/setup-profile')) {
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('profile_completed')
-        .eq('id', user.id)
-        .single();
-
-      // If profile fetch fails (e.g. database error or missing profile), defer to defaults safely
-      const isProfileComplete = profile?.profile_completed;
-
-      // Path protection based on profile completion state
-      if (!isProfileComplete && !path.startsWith('/setup-profile')) {
-        // Active session, incomplete profile -> force setup
-        return NextResponse.redirect(new URL('/setup-profile', req.url));
-      }
-
-      if (isProfileComplete && path.startsWith('/setup-profile')) {
-        // Completed profile should not land back in setup
-        return NextResponse.redirect(new URL('/dashboard', req.url));
-      }
-    }
-
-    // Return existing modified response preserving cookies and headers
-    return supabaseResponse;
-
-  } catch (error) {
-    console.error('[Middleware] Error retrieving user context:', error);
-    // In extreme failure, default to the auth page safely
-    const isPublicPath = publicPaths.some(p => path.startsWith(p));
-    if (isPublicPath) return supabaseResponse;
-    return NextResponse.redirect(new URL('/auth', req.url));
+  // If user is already authenticated, redirect them away from the auth page
+  if (authToken && request.nextUrl.pathname === '/auth') {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard' 
+    return NextResponse.redirect(url)
   }
+
+  return NextResponse.next()
 }
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-};
+}

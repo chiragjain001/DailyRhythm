@@ -9,8 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { X, User, Shield, Edit2 } from "lucide-react"
-import { useSupabase } from "@/components/supabase-provider"
-import { getProfile, upsertProfile, uploadAvatar, type ProfileRow } from "@/lib/profile"
+import { getCurrentUser, AuthUser } from "@/lib/auth-utils"
 import { toast } from "sonner"
 
 interface AccountModalProps {
@@ -19,9 +18,7 @@ interface AccountModalProps {
 }
 
 export function AccountModal({ open, onOpenChange }: AccountModalProps) {
-  const { supabase } = useSupabase()
-  const [profile, setProfile] = useState<ProfileRow | null>(null)
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingUsername, setEditingUsername] = useState(false)
   const [editingEmail, setEditingEmail] = useState(false)
@@ -34,14 +31,10 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
 
     async function loadUserProfile() {
       try {
-        const { data: { user: authUser } } = await supabase.auth.getUser()
+        const authUser = await getCurrentUser()
         if (authUser) {
           setCurrentUser(authUser)
-          const { data: profileData } = await getProfile(authUser.id)
-          if (profileData) {
-            setProfile(profileData)
-            setTempUsername(profileData.username || "")
-          }
+          setTempUsername(authUser.username || authUser.first_name || "")
           setTempEmail(authUser.email || "")
         }
       } catch (error) {
@@ -53,7 +46,7 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
     }
 
     loadUserProfile()
-  }, [supabase, open])
+  }, [open])
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -61,18 +54,20 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
 
     try {
       setLoading(true)
-      const { data: avatarData, error: uploadError } = await uploadAvatar(file, currentUser.id)
+      // MOCK: Replace with custom backend upload
+      const formData = new FormData()
+      formData.append('avatar', file)
       
-      if (uploadError) {
-        throw new Error(uploadError)
-      }
+      const res = await fetch('/api/user/avatar', {
+        method: 'POST',
+        body: formData
+      })
       
-      if (avatarData && profile) {
-        const updatedProfile = { ...profile, avatar_url: avatarData.url }
-        await upsertProfile(updatedProfile)
-        setProfile(updatedProfile)
-        toast.success("Profile photo updated successfully!")
-      }
+      if (!res.ok) throw new Error('Failed to upload avatar')
+      const data = await res.json()
+      
+      setCurrentUser({ ...currentUser, avatar_url: data.url })
+      toast.success("Profile photo updated successfully!")
     } catch (error) {
       console.error('Error uploading avatar:', error)
       toast.error("Failed to upload profile photo")
@@ -82,12 +77,18 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
   }
 
   const handleUsernameUpdate = async () => {
-    if (!profile || !currentUser) return
+    if (!currentUser) return
 
     try {
-      const updatedProfile = { ...profile, username: tempUsername }
-      await upsertProfile(updatedProfile)
-      setProfile(updatedProfile)
+      // MOCK: Replace with custom backend profile update
+      const res = await fetch('/api/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: tempUsername })
+      })
+      if (!res.ok) throw new Error('Failed to update username')
+      
+      setCurrentUser({ ...currentUser, username: tempUsername })
       setEditingUsername(false)
       toast.success("Username updated successfully!")
     } catch (error) {
@@ -100,8 +101,13 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
     if (!currentUser) return
 
     try {
-      const { error } = await supabase.auth.updateUser({ email: tempEmail })
-      if (error) throw error
+      // MOCK: Replace with custom backend email update logic
+      const res = await fetch('/api/user/email', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: tempEmail })
+      })
+      if (!res.ok) throw new Error('Failed to update email')
       
       setEditingEmail(false)
       toast.success("Email update initiated! Check your new email for confirmation.")
@@ -112,13 +118,13 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
   }
 
   const getDisplayName = () => {
-    if (profile?.first_name && profile?.last_name) {
-      return `${profile.first_name} ${profile.last_name}`
+    if (currentUser?.first_name && currentUser?.last_name) {
+      return `${currentUser.first_name} ${currentUser.last_name}`
     }
-    if (profile?.username) {
-      return profile.username
+    if (currentUser?.username) {
+      return currentUser.username
     }
-    return currentUser?.email?.split('@')[0] || "User"
+    return currentUser?.first_name || currentUser?.email?.split('@')[0] || "User"
   }
 
   const getUserInitials = (name?: string) => {
@@ -186,7 +192,7 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
                       <div className="relative">
                         <Avatar className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 xl:w-16 xl:h-16">
                           <AvatarImage 
-                            src={profile?.avatar_url || "/placeholder.svg?height=48&width=48"} 
+                            src={currentUser?.avatar_url || "/placeholder.svg?height=48&width=48"} 
                             alt="Profile"
                             className="object-cover w-full h-full"
                           />
@@ -228,14 +234,14 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => {
                           setEditingUsername(false)
-                          setTempUsername(profile?.username || "")
+                          setTempUsername(currentUser?.username || currentUser?.first_name || "")
                         }} className="text-xs">
                           Cancel
                         </Button>
                       </div>
                     ) : (
                       <>
-                        <span className="text-sm">{profile?.username || "chirag-jain"}</span>
+                        <span className="text-sm">{currentUser?.username || currentUser?.first_name || "User"}</span>
                         <Button variant="link" size="sm" onClick={() => setEditingUsername(true)} className="text-blue-600 text-sm">
                           Update username
                         </Button>

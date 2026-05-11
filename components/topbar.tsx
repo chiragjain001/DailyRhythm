@@ -7,7 +7,7 @@ import { Home, Cog, Trophy, ChevronLeft, ChevronRight, CalendarDays, Leaf, User,
 import { Logo } from "./logo"
 import { greetingByTime, useMindmateStore } from "@/store/use-mindmate-store"
 import { format } from "date-fns"
-import { supabase } from "@/lib/supabaseClient"
+import { getCurrentUser, signOut, AuthUser } from "@/lib/auth-utils"
 import { AccountModal } from "@/components/account-modal"
 import { DataExportModal } from "@/components/data-export-modal"
 import {
@@ -29,48 +29,15 @@ export function Topbar() {
   const [activeButton, setActiveButton] = useState<string | null>(null)
   const [accountModalOpen, setAccountModalOpen] = useState(false)
   const [exportModalOpen, setExportModalOpen] = useState(false)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
 
   // Load user data
   useEffect(() => {
     const loadUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-        
-        setUser({
-          id: session.user.id,
-          email: session.user.email,
-          ...profile
-        })
-      }
+      const currentUser = await getCurrentUser()
+      setUser(currentUser)
     }
-
     loadUser()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-        
-        setUser({
-          id: session.user.id,
-          email: session.user.email,
-          ...profile
-        })
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null)
-      }
-    })
-
-    return () => subscription.unsubscribe()
   }, [])
 
   const handleButtonClick = (buttonName: string) => {
@@ -79,9 +46,7 @@ export function Topbar() {
 
   const handleSignOut = async () => {
     try {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
-      router.push('/auth')
+      await signOut()
     } catch (error) {
       console.error('Error signing out:', error)
     }
@@ -106,7 +71,7 @@ export function Topbar() {
     if (user?.username) {
       return user.username
     }
-    return user?.name || user?.email?.split('@')[0] || "User"
+    return user?.first_name || user?.email?.split('@')[0] || "User"
   }
 
   // Get avatar URL

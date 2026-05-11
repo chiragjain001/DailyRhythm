@@ -47,13 +47,7 @@ export function useCompletionTracker(): CompletionData {
   const { habits, loading: habitsLoading } = useSupabaseHabits();
   const { wellness, completionPercentage: wellnessCompletionPercentage = 0, loading: wellnessLoading } = useSupabaseWellness();
   
-  // Force re-calculation trigger for real-time updates
-  const [updateTrigger, setUpdateTrigger] = useState(0);
-  
-  // Trigger updates when any data changes
-  useEffect(() => {
-    setUpdateTrigger(prev => prev + 1);
-  }, [tasks, habits, wellness]);
+  // Trigger updates naturally through useMemo dependencies
   
   // Main completion calculation
   const completionData: CompletionData = useMemo(() => {
@@ -130,7 +124,7 @@ export function useCompletionTracker(): CompletionData {
       hasItems: totalItems > 0,
       isFullyCompleted: completionPercentage === 100 && totalItems > 0
     };
-  }, [tasks, habits, wellness, wellnessCompletionPercentage, tasksLoading, habitsLoading, wellnessLoading, updateTrigger]);
+  }, [tasks, habits, wellness, wellnessCompletionPercentage, tasksLoading, habitsLoading, wellnessLoading]);
   
   // Log completion updates for debugging
   useEffect(() => {

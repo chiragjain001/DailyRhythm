@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { useMemo } from 'react';
+import { useMindmateStore } from '@/store/use-mindmate-store';
 import {
   startOfWeek,
   endOfWeek,
@@ -29,198 +29,89 @@ export interface WeeklyDayData {
 }
 
 export function useWeeklyCompletionData() {
-  const [weekData, setWeekData] = useState<WeeklyDayData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const tasks = useMindmateStore(state => state.tasks);
+  const habits = useMindmateStore(state => state.habits);
+  const wellness = useMindmateStore(state => state.wellness);
 
-  const fetchWeeklyData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const processedData = useMemo(() => {
+    const now = new Date();
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
+    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });     // Sunday
+    const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
+    
+    const totalHabitsCount = habits?.length || 0;
 
-      if (authError || !user) {
-        throw new Error('Not authenticated');
-      }
+    return daysInWeek.map((date) => {
+      const dayStart = startOfDay(date);
+      const dayEnd = endOfDay(date);
+      const isCurrentDay = isToday(date);
+      const isPastDay = isBefore(date, startOfDay(now)) && !isCurrentDay;
+      const isFutureDay = !isPastDay && !isCurrentDay;
 
-      const now = new Date();
-      const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
-      const weekEnd = endOfWeek(now, { weekStartsOn: 1 });     // Sunday
-      const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
+      let completedTasks = 0;
+      let totalTasks = 0;
+      let completedHabits = 0;
+      let totalHabits = 0;
+      let completedWellness = 0;
+      let totalWellness = 0;
 
-      const weekStartISO = weekStart.toISOString();
-      const weekEndISO = weekEnd.toISOString();
-      const weekStartDate = format(weekStart, 'yyyy-MM-dd');
-      const weekEndDate = format(weekEnd, 'yyyy-MM-dd');
+      if (!isFutureDay) {
+        if (isCurrentDay) {
+          totalTasks = (tasks || []).length;
+          completedTasks = (tasks || []).filter(t => t.completed).length;
 
-      // ── Parallel fetch: tasks, habits, wellness ─────────────────────────
-      const [
-        { data: tasks,     error: tasksErr },
-        { data: habits,    error: habitsErr },
-        { data: wellness,  error: wellnessErr },
-      ] = await Promise.all([
-        supabase
-          .from('tasks')
-          .select('id, completed, created_at')
-          .eq('user_id', user.id), // Removed date constraints for full synchronization
+          totalWellness = 4;
+          completedWellness = Math.min((wellness || []).filter(w => w.completed).length, 4);
+        } else {
+          // HISTORICAL logic
+          const dayTasks = (tasks || []).filter(t => {
+            const timeStr = t.createdAt || (t as any).created_at;
+            if (!timeStr) return false;
+            const d = new Date(timeStr);
+            return d >= dayStart && d <= dayEnd;
+          });
+          totalTasks = dayTasks.length;
+          completedTasks = dayTasks.filter(t => t.completed).length;
 
-        supabase
-          .from('habits')
-          .select('id, completed, created_at')
-          .eq('user_id', user.id),
-
-        supabase
-          .from('wellness_checklist')
-          .select('id, completed, created_at')
-          .eq('user_id', user.id), // Removed date constraints for full synchronization
-      ]);
-
-      if (tasksErr) throw tasksErr;
-      if (habitsErr) throw habitsErr;
-      if (wellnessErr) throw wellnessErr;
-
-      // Total habits count (habits are recurring, so same count every day)
-      const totalHabitsCount = habits?.length || 0;
-
-      // ── Build per-day data ──────────────────────────────────────────────
-      const processedWeekData: WeeklyDayData[] = daysInWeek.map((date) => {
-        const dayStart = startOfDay(date);
-        const dayEnd = endOfDay(date);
-        const isCurrentDay = isToday(date);
-        const isPastDay = isBefore(date, startOfDay(now)) && !isCurrentDay;
-        const isFutureDay = !isPastDay && !isCurrentDay;
-
-        let completedTasks = 0;
-        let totalTasks = 0;
-        let completedHabits = 0;
-        let totalHabits = 0;
-        let completedWellness = 0;
-        let totalWellness = 0;
-
-        if (!isFutureDay) {
-          if (isCurrentDay) {
-            // ── Synchronize TODAY with overall dashboard (full collection) ──
-            totalTasks = (tasks || []).length;
-            completedTasks = (tasks || []).filter(t => t.completed).length;
-
-            totalWellness = 4;
-            completedWellness = Math.min((wellness || []).filter(w => w.completed).length, 4);
-          } else {
-            // ── HISTORICAL logic for past days ──
-            const dayTasks = (tasks || []).filter(t => {
-              const d = new Date(t.created_at);
-              return d >= dayStart && d <= dayEnd;
-            });
-            totalTasks = dayTasks.length;
-            completedTasks = dayTasks.filter(t => t.completed).length;
-
-            // For past days, since table has no history, calculate a generic estimate based on current trends
-            const activeWellness = (wellness || []).filter(w => w.completed).length;
-            const dayIdx = date.getDay();
-            const factor = 0.5 + ((dayIdx + 1) % 3) * 0.2; // rotation estimation
-            totalWellness = 4;
-            // Derive estimation bound by current completions and target
-            completedWellness = Math.min(4, Math.max(1, Math.round((activeWellness || 3) * factor)));
-          }
-
-          // Habits: same total each day; logic already split between current and past estimations
-          totalHabits = totalHabitsCount;
-          if (isCurrentDay) {
-            completedHabits = (habits || []).filter(h => h.completed).length;
-          } else if (isPastDay) {
-            // We don't have per-day history for habits (simple schema),
-            // so derive a realistic value from the day-of-week index
-            const dayIdx = date.getDay(); // 0=Sun … 6=Sat
-            const factor = 0.5 + (dayIdx % 3) * 0.15; // 0.5, 0.65, 0.80 rotation
-            completedHabits = Math.round(totalHabitsCount * Math.min(factor, 1));
-          }
+          const activeWellness = (wellness || []).filter(w => w.completed).length;
+          const dayIdx = date.getDay();
+          const factor = 0.5 + ((dayIdx + 1) % 3) * 0.2;
+          totalWellness = 4;
+          completedWellness = Math.min(4, Math.max(1, Math.round((activeWellness || 3) * factor)));
         }
 
-        const totalItems = totalTasks + totalHabits + totalWellness;
-        const completedItems = completedTasks + completedHabits + completedWellness;
-        const completionPercentage =
-          totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+        totalHabits = totalHabitsCount;
+        if (isCurrentDay) {
+          completedHabits = (habits || []).filter(h => h.completedToday).length;
+        } else if (isPastDay) {
+          const dayIdx = date.getDay(); 
+          const factor = 0.5 + (dayIdx % 3) * 0.15;
+          completedHabits = Math.round(totalHabitsCount * Math.min(factor, 1));
+        }
+      }
 
-        return {
-          date,
-          dayName: format(date, 'EEEE'),
-          dayShort: format(date, 'EEE'),
-          dateLabel: format(date, 'MMM d'),
-          completedTasks,
-          totalTasks,
-          completedHabits,
-          totalHabits,
-          completedWellness,
-          totalWellness,
-          completionPercentage,
-          isCurrentDay,
-          isPastDay,
-          isFutureDay,
-        };
-      });
+      const totalItems = totalTasks + totalHabits + totalWellness;
+      const completedItems = completedTasks + completedHabits + completedWellness;
+      const completionPercentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
-      setWeekData(processedWeekData);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching weekly completion data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch weekly data');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return {
+        date,
+        dayName: format(date, 'EEEE'),
+        dayShort: format(date, 'EEE'),
+        dateLabel: format(date, 'MMM d'),
+        completedTasks,
+        totalTasks,
+        completedHabits,
+        totalHabits,
+        completedWellness,
+        totalWellness,
+        completionPercentage,
+        isCurrentDay,
+        isPastDay,
+        isFutureDay,
+      };
+    });
+  }, [tasks, habits, wellness]);
 
-  // ── Real-time subscriptions + initial fetch ─────────────────────────────
-  useEffect(() => {
-    let channels: ReturnType<typeof supabase.channel>[] = [];
-
-    const setup = async () => {
-      await fetchWeeklyData();
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const uniqueId = Math.random().toString(36).substring(7);
-
-      const tasksChannel = supabase
-        .channel(`wc_tasks_${uniqueId}`)
-        .on('postgres_changes', {
-          event: '*', schema: 'public', table: 'tasks',
-          filter: `user_id=eq.${user.id}`,
-        }, () => fetchWeeklyData())
-        .subscribe();
-
-      const habitsChannel = supabase
-        .channel(`wc_habits_${uniqueId}`)
-        .on('postgres_changes', {
-          event: '*', schema: 'public', table: 'habits',
-          filter: `user_id=eq.${user.id}`,
-        }, () => fetchWeeklyData())
-        .subscribe();
-
-      const wellnessChannel = supabase
-        .channel(`wc_wellness_${uniqueId}`)
-        .on('postgres_changes', {
-          event: '*', schema: 'public', table: 'wellness_checklist',
-          filter: `user_id=eq.${user.id}`,
-        }, () => fetchWeeklyData())
-        .subscribe();
-
-      channels = [tasksChannel, habitsChannel, wellnessChannel];
-    };
-
-    setup();
-
-    // Midnight rollover refresh
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
-    const midnightTimer = setTimeout(() => fetchWeeklyData(), tomorrow.getTime() - now.getTime());
-
-    return () => {
-      clearTimeout(midnightTimer);
-      channels.forEach(ch => supabase.removeChannel(ch));
-    };
-  }, [fetchWeeklyData]);
-
-  return { weekData, loading, error, refetch: fetchWeeklyData };
+  return { weekData: processedData, loading: false, error: null, refetch: () => {} };
 }

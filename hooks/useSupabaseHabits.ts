@@ -1,46 +1,20 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { Habit } from '@/store/use-mindmate-store';
-import { useRouter } from 'next/navigation';
+import { useMindmateStore, Habit } from '@/store/use-mindmate-store';
 
 export function useSupabaseHabits() {
-  const [habits, setHabits] = useState<Habit[]>([]);
+  const habits = useMindmateStore(state => state.habits);
+  const setHabits = useMindmateStore(state => state.setHabits);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
-  // Fetch habits from Supabase
+  // Fetch habits from custom backend
   const fetchHabits = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        console.warn('[SupabaseHabits] Session unavailable, relying on middleware safety');
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('habits')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      const mappedHabits = (data || []).map(h => ({
-        id: h.id,
-        title: h.habit, // Map DB field 'habit' to UI field 'title'
-        note: '', // Mocked as not in DB
-        time: '', // Mocked as not in DB
-        streak: h.completed ? 1 : 0, // Mocked based on completed today
-        completedToday: h.completed,
-      } as Habit));
-
-      setHabits(mappedHabits);
+      const res = await fetch('/api/habits');
+      if (!res.ok) throw new Error('Failed to fetch habits');
+      const data = await res.json();
+      setHabits(data.habits || []);
       setError(null);
     } catch (err) {
       console.error('Error fetching habits:', err);
@@ -48,42 +22,33 @@ export function useSupabaseHabits() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, []);
 
   // Add a new habit
   const addHabit = useCallback(async (habitProps: Pick<Habit, 'title' | 'note' | 'time'>) => {
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        throw new Error('Not authenticated');
-      }
-
-      const { data, error } = await supabase
-        .from('habits')
-        .insert([{
-          user_id: user.id,
-          habit: habitProps.title, // Map UI field 'title' to DB field 'habit'
-          completed: false
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      const newHabit: Habit = {
-        id: data.id,
-        title: data.habit,
+      // Optimistic update
+      const tempId = 'temp_' + Date.now();
+      const newHabit = {
+        id: tempId,
+        title: habitProps.title,
         note: habitProps.note || '',
         time: habitProps.time || '',
         streak: 0,
-        completedToday: data.completed
-      };
-
+        completedToday: false
+      } as Habit;
       setHabits(prev => [newHabit, ...prev]);
-      return newHabit;
+
+      const res = await fetch('/api/habits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(habitProps),
+      });
+      if (!res.ok) throw new Error('Failed to add habit');
+      const data = await res.json();
+      
+      setHabits(prev => prev.map(h => h.id === tempId ? data.habit : h));
+      return data.habit;
     } catch (err) {
       console.error('Error adding habit:', err);
       setError(err instanceof Error ? err.message : 'Failed to add habit');
@@ -96,34 +61,22 @@ export function useSupabaseHabits() {
     const habitToUpdate = habits.find(h => h.id === id);
     if (!habitToUpdate) return;
 
+    // Optimistic update
+    const optimisticUpdate = {
+      ...habitToUpdate,
+      completedToday: !habitToUpdate.completedToday,
+      streak: !habitToUpdate.completedToday ? habitToUpdate.streak + 1 : Math.max(0, habitToUpdate.streak - 1)
+    };
+    setHabits(prev => prev.map(h => h.id === id ? optimisticUpdate : h));
+
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        throw new Error('Not authenticated');
-      }
-
-      // Optimistic update
-      const optimisticUpdate = {
-        ...habitToUpdate,
-        completedToday: !habitToUpdate.completedToday,
-        streak: !habitToUpdate.completedToday ? habitToUpdate.streak + 1 : Math.max(0, habitToUpdate.streak - 1)
-      };
-      
-      setHabits(prev => prev.map(h => h.id === id ? optimisticUpdate : h));
-
-      const { error } = await supabase
-        .from('habits')
-        .update({ completed: !habitToUpdate.completedToday })
-        .eq('id', id)
-        .eq('user_id', user.id);
-
-      if (error) {
-        throw error;
-      }
-
+      const res = await fetch(`/api/habits/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !habitToUpdate.completedToday }),
+      });
+      if (!res.ok) throw new Error('Failed to update habit');
     } catch (err) {
-      console.error('Error toggling habit:', err);
       // Revert optimistic update
       setHabits(prev => prev.map(h => h.id === id ? habitToUpdate : h));
       setError(err instanceof Error ? err.message : 'Failed to toggle habit');
@@ -134,23 +87,9 @@ export function useSupabaseHabits() {
   // Delete a habit
   const deleteHabit = useCallback(async (id: string) => {
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        throw new Error('Not authenticated');
-      }
-
-      const { error } = await supabase
-        .from('habits')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
-
-      if (error) {
-        throw error;
-      }
-
       setHabits(prev => prev.filter(habit => habit.id !== id));
+      const res = await fetch(`/api/habits/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete habit');
     } catch (err) {
       console.error('Error deleting habit:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete habit');
@@ -158,37 +97,8 @@ export function useSupabaseHabits() {
     }
   }, []);
 
-  // Set up real-time subscription
   useEffect(() => {
-    let habitsChannel: any;
-
-    const setupRealtimeSubscriptions = async () => {
-      await fetchHabits();
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const uniqueId = Math.random().toString(36).substring(7);
-      habitsChannel = supabase
-        .channel(`habits_changes_dash_${uniqueId}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'habits',
-          filter: `user_id=eq.${user.id}`
-        }, () => {
-          fetchHabits();
-        })
-        .subscribe();
-    };
-
-    setupRealtimeSubscriptions();
-
-    return () => {
-      if (habitsChannel) {
-        supabase.removeChannel(habitsChannel);
-      }
-    };
+    fetchHabits();
   }, [fetchHabits]);
 
   return {
