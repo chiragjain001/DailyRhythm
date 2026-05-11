@@ -6,23 +6,27 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { setAuthSession, getCurrentUser } from '@/lib/auth-utils';
+import { setAuthSession } from '@/lib/auth-utils';
 import { supabase } from '@/lib/supabaseClient';
-
 
 // Force this page to be client-side only
 export const dynamic = 'force-dynamic';
 
-const schema = z.object({
+const loginSchema = z.object({
   email: z.string().email('Enter a valid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+const signupSchema = loginSchema.extend({
   firstName: z.string().max(50, 'Max 50 characters').optional().or(z.literal('')),
   lastName: z.string().max(50, 'Max 50 characters').optional().or(z.literal('')),
 });
 
-type FormValues = z.infer<typeof schema>;
+type LoginValues = z.infer<typeof loginSchema>;
+type SignupValues = z.infer<typeof signupSchema>;
+type FormValues = SignupValues;
 
-function AuthPageContent({ params, searchParams }: { params: Promise<any>, searchParams: Promise<any> }) {
+function AuthPageContent() {
   const router = useRouter();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [showPassword, setShowPassword] = useState(false);
@@ -36,42 +40,45 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<FormValues>({ resolver: zodResolver(schema), mode: 'onChange' });
+  } = useForm<FormValues>({ resolver: zodResolver(signupSchema), mode: 'onChange' });
 
   const passwordValue = watch('password');
 
+  // Password strength meter
   useEffect(() => {
-    if (!passwordValue) {
-      setPasswordScore(null);
-      return;
-    }
+    if (!passwordValue) { setPasswordScore(null); return; }
     let isMounted = true;
     const checkScore = async () => {
       try {
         const { default: zxcvbn } = await import('zxcvbn');
         if (isMounted) setPasswordScore(zxcvbn(passwordValue).score);
-      } catch (e) {
-        if (isMounted) setPasswordScore(null);
-      }
+      } catch { if (isMounted) setPasswordScore(null); }
     };
     checkScore();
     return () => { isMounted = false; };
   }, [passwordValue]);
 
+  // If user already has a session, redirect them away from the auth page
   useEffect(() => {
-    // Check if user is already authenticated based on our custom store
     const checkAuth = async () => {
       try {
-        const user = await getCurrentUser();
+        const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          if (user.profile_completed) {
+          // Check profile completion
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('profile_completed')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (profile?.profile_completed) {
             router.replace('/dashboard');
           } else {
             router.replace('/setup-profile');
           }
         }
-      } catch (err: any) {
-        console.error('Auth check failed:', err);
+      } catch (err) {
+        // Supabase not configured — ignore silently
       }
     };
     checkAuth();
@@ -83,35 +90,81 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
     setMessage(null);
 
     try {
-      const endpoint = mode === 'signup' ? '/api/auth/register' : '/api/auth/login';
-      
-      // IMPLEMENTATION NOTE: Replace the block below with an actual call to your custom API backend
-      /*
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Authentication failed');
-      */
+      if (mode === 'signup') {
+        // ─── SIGN UP ───────────────────────────────────────────────────────────
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: values.email,
+          password: values.password,
+          options: {
+            data: {
+              first_name: values.firstName || '',
+              last_name: values.lastName || '',
+            },
+          },
+        });
 
-      // Simulated custom API response setup:
-      const dummyToken = 'custom_jwt_token_' + Math.random().toString(36).substr(2);
-      const dummyUser = {
-        id: 'user_' + Math.random().toString(36).substr(2),
-        email: values.email,
-        first_name: values.firstName,
-        last_name: values.lastName,
-        profile_completed: false // default assuming user needs to finish setup
-      };
+        if (signUpError) throw signUpError;
 
-      // Set cookies & local storage
-      setAuthSession(dummyToken, dummyUser);
-      
-      toast.success(mode === 'signup' ? 'Signed up successfully' : 'Signed in successfully');
-      router.replace('/setup-profile');
-      
+        if (data.session && data.user) {
+          // User confirmed immediately (email confirmation disabled)
+          setAuthSession(data.session.access_token, {
+            id: data.user.id,
+            email: data.user.email ?? undefined,
+            first_name: values.firstName || undefined,
+            last_name: values.lastName || undefined,
+            profile_completed: false,
+          });
+          toast.success('Account created! Set up your profile.');
+          router.replace('/setup-profile');
+        } else {
+          // Email confirmation required
+          setMessage('Check your email to confirm your account, then sign in.');
+          toast.success('Confirmation email sent!');
+        }
+
+      } else {
+        // ─── SIGN IN ───────────────────────────────────────────────────────────
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: values.email,
+          password: values.password,
+        });
+
+        if (signInError) throw signInError;
+
+        if (!data.session || !data.user) {
+          throw new Error('Sign in failed — no session returned.');
+        }
+
+        // Check if profile is already completed
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('profile_completed, username, avatar_url')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        const isComplete = profile?.profile_completed === true;
+
+        // Store the session in our custom auth layer
+        setAuthSession(data.session.access_token, {
+          id: data.user.id,
+          email: data.user.email ?? undefined,
+          first_name: data.user.user_metadata?.first_name ?? undefined,
+          last_name: data.user.user_metadata?.last_name ?? undefined,
+          username: profile?.username ?? undefined,
+          avatar_url: profile?.avatar_url ?? undefined,
+          profile_completed: isComplete,
+        });
+
+        toast.success('Signed in successfully!');
+
+        // Correct routing: existing users go to dashboard, new users to profile setup
+        if (isComplete) {
+          router.replace('/dashboard');
+        } else {
+          router.replace('/setup-profile');
+        }
+      }
+
     } catch (err: any) {
       const msg = err.message ?? 'Unexpected error';
       setError(msg);
@@ -272,15 +325,7 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
               <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters.</p>
               {passwordScore !== null && (
                 <div className="text-xs mt-1">
-                  <span
-                    className={
-                      passwordScore >= 3
-                        ? 'text-green-500'
-                        : passwordScore === 2
-                        ? 'text-yellow-500'
-                        : 'text-red-500'
-                    }
-                  >
+                  <span className={passwordScore >= 3 ? 'text-green-500' : passwordScore === 2 ? 'text-yellow-500' : 'text-red-500'}>
                     {passwordScore >= 3 ? 'Strong' : passwordScore === 2 ? 'Medium' : 'Weak'}
                   </span>
                 </div>
@@ -299,9 +344,9 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
 
           <div className="text-xs sm:text-sm mt-3 sm:mt-4 text-center space-y-2">
             {mode === 'signup' ? (
-              <button className="text-[#6C63FF] hover:text-[#5A52E5] font-medium" onClick={() => setMode('signin')} >Already have an account? Log in</button>
+              <button className="text-[#6C63FF] hover:text-[#5A52E5] font-medium" onClick={() => setMode('signin')}>Already have an account? Log in</button>
             ) : (
-              <button className="text-[#6C63FF] hover:text-[#5A52E5] font-medium" onClick={() => setMode('signup')} >No account? Sign up</button>
+              <button className="text-[#6C63FF] hover:text-[#5A52E5] font-medium" onClick={() => setMode('signup')}>No account? Sign up</button>
             )}
             <div className="mt-2">
               {!mode || mode === 'signin' ? (
@@ -318,6 +363,6 @@ function AuthPageContent({ params, searchParams }: { params: Promise<any>, searc
   );
 }
 
-export default function AuthPage({ params, searchParams }: { params: Promise<any>, searchParams: Promise<any> }) {
-  return <AuthPageContent params={params} searchParams={searchParams} />;
+export default function AuthPage() {
+  return <AuthPageContent />;
 }

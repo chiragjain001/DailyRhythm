@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { getCurrentUser } from '@/lib/auth-utils';
+import { getCurrentUser, setAuthSession } from '@/lib/auth-utils';
 import { getProfile, upsertProfile, uploadAvatar, checkUsernameAvailable, type ProfileRow } from '@/lib/profile';
 import Cropper from 'react-easy-crop';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabaseClient';
 
 const schema = z.object({
   username: z
@@ -248,6 +249,22 @@ export default function SetupProfilePage() {
       });
 
       if (updateError) throw updateError;
+
+      // Update the cached localStorage session so profile_completed is true
+      // This prevents future sign-ins routing back to setup-profile
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setAuthSession(session.access_token, {
+            id: userId,
+            username: values.username,
+            avatar_url: avatarUrl ?? undefined,
+            profile_completed: true,
+          });
+        }
+      } catch {
+        // non-critical — ignore
+      }
 
       toast.success('Profile updated successfully!');
       router.push('/dashboard');
