@@ -144,7 +144,7 @@ export function WellnessChecklist() {
                     <p className="text-sm text-neutral-400 text-center">Activities will appear here once added</p>
                   </div>
                 ) : (
-                  wellness.slice(0, 6).map((w) => (
+                  wellness.map((w) => (
                     <button
                       key={w.id}
                       onClick={() => toggleWellness(w.id)}

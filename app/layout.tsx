@@ -4,7 +4,7 @@ import "./globals.css"
 import { LoadingProvider } from "@/contexts/loading-context"
 import { Toaster } from "sonner"
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration"
-
+import { AuthProvider } from "@/components/AuthProvider"
 export const metadata: Metadata = {
   title: "MindSync",
   description: "MindSync - Your productivity companion",
@@ -67,9 +67,11 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <LoadingProvider>
-          <ServiceWorkerRegistration />
-          {children}
-          <Toaster />
+          <AuthProvider>
+            <ServiceWorkerRegistration />
+            {children}
+            <Toaster />
+          </AuthProvider>
         </LoadingProvider>
       </body>
     </html>

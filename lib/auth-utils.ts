@@ -1,4 +1,5 @@
 import { safeStorage } from './safeStorage';
+import { md5 } from './md5';
 
 export interface AuthUser {
   id: string;
@@ -92,3 +93,36 @@ export async function redirectToAuth(): Promise<void> {
     window.location.href = '/auth';
   }
 }
+
+/**
+ * Seamlessly returns the user's profile avatar:
+ * 1. Custom avatar_url (manual storage or high-res Google OAuth)
+ * 2. Dynamic Gravatar via the user's email MD5 hash
+ * 3. Branded high-res UI-Avatar fallback (MindSync theme)
+ */
+export function getUserAvatarUrl(user: AuthUser | null | undefined): string {
+  if (!user) {
+    return `https://ui-avatars.com/api/?name=User&background=1F2F4A&color=fff&size=200&bold=true`;
+  }
+
+  // If an explicit URL is stored, use it (Supabase storage OR OAuth URL)
+  if (user.avatar_url) {
+    return user.avatar_url;
+  }
+
+  const name = user.username || user.first_name || (user.email ? user.email.split('@')[0] : 'User');
+  const formattedName = encodeURIComponent(name.trim());
+  
+  // Branded fallback: MindSync dark blue theme
+  const fallback = encodeURIComponent(`https://ui-avatars.com/api/?name=${formattedName}&background=1F2F4A&color=fff&size=200&bold=true`);
+
+  if (user.email) {
+    const hash = md5(user.email);
+    // Gravatar checks for real photo, fallbacks to gorgeous UI avatar if not found!
+    return `https://www.gravatar.com/avatar/${hash}?s=200&d=${fallback}`;
+  }
+
+  // Default if email not available
+  return `https://ui-avatars.com/api/?name=${formattedName}&background=1F2F4A&color=fff&size=200&bold=true`;
+}
+

@@ -175,7 +175,7 @@ export function Panel1() {
               }}
             >
               <RotateCcw className="mr-1 h-4 w-4" /> 
-              {"hidden sm:inline"}
+              <span className="hidden sm:inline">Reset</span>
             </Button>
             
             <Button
@@ -187,7 +187,7 @@ export function Panel1() {
               onClick={() => setShowSettings((s) => !s)}
             >
               <Settings className="mr-1 h-4 w-4" /> 
-              {"hidden sm:inline"}
+              <span className="hidden sm:inline">Settings</span>
             </Button>
           </div>
 

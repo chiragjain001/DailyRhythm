@@ -1,24 +1,28 @@
 "use client";
 
 import { useEffect } from 'react';
+import { toast } from 'sonner';
 
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
     if ('serviceWorker' in navigator && typeof window !== 'undefined') {
-      // Unregister any existing service workers first to avoid conflicts
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        registrations.forEach((registration) => {
-          if (registration.scope.includes('localhost') || registration.scope.includes('127.0.0.1')) {
-            console.log('Unregistering old service worker:', registration.scope);
-            registration.unregister();
-          }
+      const isDev = process.env.NODE_ENV === 'development';
+
+      // In Development, always unregister SW to prevent cached code blocking updates!
+      if (isDev) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((reg) => {
+            reg.unregister();
+            console.log('[DEV MODE]: Service Worker unregistered to disable cache.');
+          });
         });
-      }).then(() => {
-        // Register the new service worker
-        return navigator.serviceWorker.register('/sw.js', {
-          scope: '/',
-          updateViaCache: 'none' // Always check for updates
-        });
+        return;
+      }
+
+      // Register the new service worker (Production only)
+      navigator.serviceWorker.register('/sw.js', {
+        scope: '/',
+        updateViaCache: 'none'
       }).then((registration) => {
         console.log('SW registered successfully:', registration.scope);
         
@@ -30,8 +34,15 @@ export default function ServiceWorkerRegistration() {
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed') {
                 if (navigator.serviceWorker.controller) {
-                  // New content is available
                   console.log('New service worker installed, content updated');
+                  toast.info('MindSync Update Ready!', {
+                    description: 'Tap reload to activate the latest features and designs.',
+                    action: {
+                      label: 'Reload',
+                      onClick: () => window.location.reload(),
+                    },
+                    duration: Infinity, // keep visible until reload
+                  });
                 } else {
                   // Content is cached for the first time
                   console.log('Content is cached for offline use');

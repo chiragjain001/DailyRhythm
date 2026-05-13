@@ -141,30 +141,89 @@ export async function checkUsernameAvailable(username: string, currentUserId?: s
   }
 }
 
+export async function compressImage(file: File, maxWidth = 400, maxHeight = 400, quality = 0.75): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      // Resize calculations
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('Could not create canvas 2d context'));
+
+      // Draw scaled image
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error('Image blob conversion failed'));
+          const compressedFile = new File([blob], `${file.name.split('.')[0]}.jpg`, {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          });
+          resolve(compressedFile);
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+    img.onerror = (err) => {
+      URL.revokeObjectURL(img.src);
+      reject(err);
+    };
+  });
+}
+
 export async function uploadAvatar(file: File, userId: string) {
   try {
-    // Validate file
+    // Validate file type
     const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       throw new Error('Invalid file type. Please upload a JPEG, PNG, or WebP image.');
     }
 
-    // Limit file size to 2MB
-    const maxSize = 2 * 1024 * 1024; // 2MB
+    // Initial size safety boundary for the browser
+    const maxSize = 15 * 1024 * 1024; // 15MB max pre-compression
     if (file.size > maxSize) {
-      throw new Error('File size too large. Maximum size is 2MB.');
+      throw new Error('Original image too large. Please select a file under 15MB.');
     }
 
-    const ext = file.name.split('.').pop() || 'png';
-    const fileName = `${userId}/${Date.now()}.${ext}`;
+    // ⚡ COMPRESS & OPTIMIZE IMAGE IN BROWSER BEFORE UPLOAD
+    let fileToUpload = file;
+    try {
+      fileToUpload = await compressImage(file, 400, 400, 0.75);
+      console.log(`[Avatar Optimizer]: Shrunk from ${(file.size / 1024).toFixed(1)}KB to ${(fileToUpload.size / 1024).toFixed(1)}KB`);
+    } catch (compressError) {
+      console.warn('Client compression failed, proceeding with original image', compressError);
+    }
+
+    const fileName = `${userId}/${Date.now()}.jpg`;
     
-    // Upload the file
+    // Upload the fully optimized file
     const { error: uploadError } = await supabase.storage
       .from('avatars')
-      .upload(fileName, file, {
+      .upload(fileName, fileToUpload, {
         cacheControl: '3600',
         upsert: true,
-        contentType: file.type
+        contentType: 'image/jpeg'
       });
 
     if (uploadError) throw uploadError;

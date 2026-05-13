@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { getCurrentUser, setAuthSession } from '@/lib/auth-utils';
-import { getProfile, upsertProfile, uploadAvatar, checkUsernameAvailable, type ProfileRow } from '@/lib/profile';
-import Cropper from 'react-easy-crop';
+import { getProfile, upsertProfile, checkUsernameAvailable } from '@/lib/profile';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -27,15 +26,9 @@ export default function SetupProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [existingAvatarUrl, setExistingAvatarUrl] = useState<string | undefined>(undefined);
   const [userId, setUserId] = useState<string | null>(null);
   const [available, setAvailable] = useState<{ available: boolean | null; error: string | null }>({ available: null, error: null });
-  // Cropper state
-  const [showCropper, setShowCropper] = useState(false);
-  const [crop, setCrop] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const {
     register,
@@ -68,6 +61,12 @@ export default function SetupProfilePage() {
         }
 
         setUserId(user.id);
+        
+        // Hold preexisting OAuth/Supabase avatars if already provided automatically
+        if (user.avatar_url) {
+          setExistingAvatarUrl(user.avatar_url);
+        }
+
         const { data: profile, error } = await getProfile(user.id);
 
         if (error) {
@@ -84,7 +83,7 @@ export default function SetupProfilePage() {
           setValue('bio', profile.bio || '');
           
           if (profile.avatar_url) {
-            setAvatarPreview(profile.avatar_url);
+            setExistingAvatarUrl(profile.avatar_url);
           }
         }
       } catch (error) {
@@ -125,78 +124,6 @@ export default function SetupProfilePage() {
     return () => clearTimeout(timeoutId);
   }, [username, userId]);
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    
-    if (!selectedFile) return;
-
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!validTypes.includes(selectedFile.type)) {
-      toast.error('Invalid file type. Please upload a JPEG, PNG, or WebP image.');
-      return;
-    }
-
-    // Validate file size (2MB max)
-    if (selectedFile.size > 2 * 1024 * 1024) {
-      toast.error('Image size too large. Maximum size is 2MB.');
-      return;
-    }
-
-    setFile(selectedFile);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAvatarPreview(reader.result as string);
-      setShowCropper(true);
-    };
-    reader.readAsDataURL(selectedFile);
-  };
-
-  // Create a blob for the cropped area
-  const getCroppedBlob = useCallback(async (
-    imageSrc: string,
-    cropPixels: { x: number; y: number; width: number; height: number }
-  ) => {
-    return new Promise<Blob>((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = imageSrc;
-
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = cropPixels.width;
-          canvas.height = cropPixels.height;
-
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return reject(new Error('Canvas not supported'));
-
-          ctx.drawImage(
-            img,
-            cropPixels.x,
-            cropPixels.y,
-            cropPixels.width,
-            cropPixels.height,
-            0,
-            0,
-            cropPixels.width,
-            cropPixels.height
-          );
-
-          canvas.toBlob((blob) => {
-            if (!blob) return reject(new Error('Failed to create blob'));
-            resolve(blob);
-          }, 'image/jpeg', 0.9);
-        } catch (err) {
-          reject(err);
-        }
-      };
-
-      img.onerror = () => reject(new Error('Failed to load image'));
-    });
-  }, []);
-
-
   const canSubmit = useMemo(() => {
     return isValid && available.available !== false && !!userId && !saving;
   }, [isValid, available, userId, saving]);
@@ -216,35 +143,12 @@ export default function SetupProfilePage() {
     setError(null);
 
     try {
-      let avatarUrl: string | null = avatarPreview;
-
-      // Handle avatar upload (respect crop if applied)
-      if (file) {
-        try {
-          let uploadFile: File = file;
-          if (avatarPreview && croppedAreaPixels) {
-            const blob = await getCroppedBlob(avatarPreview, croppedAreaPixels);
-            uploadFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-          }
-
-          const { data: uploadData, error: uploadError } = await uploadAvatar(uploadFile, userId);
-
-          if (uploadError) throw uploadError;
-          if (!uploadData?.url) throw new Error('Failed to upload avatar');
-          
-          avatarUrl = uploadData.url;
-        } catch (error) {
-          console.error('Error uploading avatar:', error);
-          throw new Error('Failed to upload profile picture. Please try again.');
-        }
-      }
-
-      // Update the profile
+      // Update the profile (retain existing avatar URL if any; no file uploads performed)
       const { error: updateError } = await upsertProfile({
         id: userId,
         username: values.username,
         bio: values.bio || null,
-        avatar_url: avatarUrl,
+        avatar_url: existingAvatarUrl || null,
         profile_completed: true,
       });
 
@@ -258,7 +162,7 @@ export default function SetupProfilePage() {
           setAuthSession(session.access_token, {
             id: userId,
             username: values.username,
-            avatar_url: avatarUrl ?? undefined,
+            avatar_url: existingAvatarUrl,
             profile_completed: true,
           });
         }
@@ -303,7 +207,6 @@ export default function SetupProfilePage() {
             <div className="logo-icon">🧠</div>
             <span className="logo-text">MindSync</span>
           </div>
-          
         </div>
       </div>
 
@@ -408,21 +311,6 @@ export default function SetupProfilePage() {
               )}
             </div>
 
-            {/* Profile Picture */}
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Profile Picture</label>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={onFileChange}
-                  disabled={saving}
-                  className="w-full rounded-2xl border border-gray-300 px-3 sm:px-4 py-2.5 sm:py-3 bg-white/50 text-gray-800 transition-all duration-200 text-sm sm:text-base file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-medium file:bg-[#6C63FF] file:text-white hover:file:bg-[#5A52E5]"
-                  suppressHydrationWarning
-                />
-              </div>
-            </div>
-
             {/* Action Buttons */}
             <div className="flex gap-2 sm:gap-3 pt-2 sm:pt-4">
               <button
@@ -450,68 +338,6 @@ export default function SetupProfilePage() {
           </form>
         </div>
       </div>
-
-      {/* Image Cropper Modal */}
-      {showCropper && avatarPreview && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-4">
-          <div className="relative w-full max-w-xl h-[360px] bg-black rounded-lg overflow-hidden">
-            <Cropper
-              image={avatarPreview}
-              aspect={1}
-              crop={crop}
-              zoom={zoom}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={(_area: any, areaPixels: { x: number; y: number; width: number; height: number }) => setCroppedAreaPixels(areaPixels)}
-              cropShape="round"
-              showGrid={false}
-            />
-          </div>
-          <div className="flex items-center gap-4 w-full max-w-xl mt-4">
-            <input
-              type="range"
-              min={1}
-              max={3}
-              step={0.1}
-              value={zoom}
-              onChange={(e) => setZoom(parseFloat(e.target.value))}
-              className="flex-1"
-              suppressHydrationWarning
-            />
-            <button
-              className="rounded-md border border-gray-600 px-3 py-2 text-gray-200"
-              onClick={() => {
-                setShowCropper(false);
-                // if user cancels, keep the chosen file but no crop applied
-                setCroppedAreaPixels(null);
-              }}
-              suppressHydrationWarning
-            >Cancel</button>
-            <button
-              className="rounded-md bg-white text-black px-3 py-2"
-              onClick={async () => {
-                if (avatarPreview && croppedAreaPixels) {
-                  try {
-                    const blob = await getCroppedBlob(avatarPreview, croppedAreaPixels);
-                    const croppedFile = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-                    setFile(croppedFile);
-                    const reader = new FileReader();
-                    reader.onload = () => setAvatarPreview(reader.result as string);
-                    reader.readAsDataURL(croppedFile);
-                    setShowCropper(false);
-                  } catch (e) {
-                    toast.error('Failed to crop image');
-                  }
-                } else {
-                  setShowCropper(false);
-                }
-              }}
-              suppressHydrationWarning
-            >Apply crop</button>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

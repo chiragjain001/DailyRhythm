@@ -30,7 +30,7 @@ export function HabitsCard() {
         if (showViewModal) setShowViewModal(false)
       }
     }
-    
+
     if (showAddModal || showViewModal) {
       document.addEventListener("keydown", handleEscape)
       return () => document.removeEventListener("keydown", handleEscape)
@@ -137,7 +137,7 @@ export function HabitsCard() {
                 )}
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  
+
                   <div className="min-w-0 flex-1">
                     <MarqueeText className="text-sm font-medium text-neutral-900">{h.title}</MarqueeText>
                     <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1">
@@ -157,8 +157,8 @@ export function HabitsCard() {
                 <div className="flex items-center gap-2 overflow-x-auto flex-shrink-0">
                   <span className={cn(
                     "flex items-center rounded-full px-2 py-1 text-xs mb-0 space-x-1",
-                    h.streak > 0 
-                      ? "bg-purple-100 text-purple-700 font-semibold" 
+                    h.streak > 0
+                      ? "bg-purple-100 text-purple-700 font-semibold"
                       : "bg-neutral-200 text-neutral-500"
                   )}>
                     <span>{h.streak}</span>
@@ -168,14 +168,14 @@ export function HabitsCard() {
                     onClick={async (e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      
+
                       // Add visual feedback immediately
                       const button = e.currentTarget;
                       button.style.transform = 'scale(0.95)';
                       setTimeout(() => {
                         button.style.transform = 'scale(1)';
                       }, 150);
-                      
+
                       try {
                         await toggleHabit(h.id);
                       } catch (error) {
@@ -213,7 +213,7 @@ export function HabitsCard() {
 
       {/* Add Habit Modal */}
       {showAddModal && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -223,15 +223,15 @@ export function HabitsCard() {
         >
           {/* Background overlay with blur effect */}
           <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
-          
+
           {/* Modal Card */}
           <div className="relative w-full max-w-2xl h-[50vh] bg-white rounded-3xl shadow-2xl animate-in fade-in-0 zoom-in-95 duration-300 flex flex-col sm:w-2/3 md:w-1/2">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-neutral-100 flex-shrink-0">
               <h2 className="text-lg font-semibold text-neutral-900">Add New Habit</h2>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowAddModal(false)}
                 className="rounded-full hover:bg-neutral-100"
                 aria-label="Close modal"
@@ -404,7 +404,7 @@ export function HabitsCard() {
 
       {/* View Habits Modal */}
       {showViewModal && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -414,15 +414,15 @@ export function HabitsCard() {
         >
           {/* Background overlay with blur effect */}
           <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
-          
+
           {/* Modal Card */}
           <div className="relative w-full max-w-2xl h-[80vh] bg-white rounded-3xl shadow-2xl animate-in fade-in-0 zoom-in-95 duration-300 flex flex-col sm:w-2/3 md:w-1/2">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-neutral-100 flex-shrink-0">
               <h2 className="text-lg font-semibold text-neutral-900">Current Habits</h2>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setShowViewModal(false)}
                 className="rounded-full hover:bg-neutral-100"
                 aria-label="Close modal"

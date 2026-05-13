@@ -8,9 +8,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { X, User, Shield, Edit2 } from "lucide-react"
-import { getCurrentUser, AuthUser } from "@/lib/auth-utils"
+import { X, User, Shield, Edit2, Loader2 } from "lucide-react"
+import { getCurrentUser, AuthUser, getUserAvatarUrl } from "@/lib/auth-utils"
 import { toast } from "sonner"
+import { uploadAvatar, upsertProfile } from "@/lib/profile"
 
 interface AccountModalProps {
   open: boolean
@@ -20,6 +21,7 @@ interface AccountModalProps {
 export function AccountModal({ open, onOpenChange }: AccountModalProps) {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
   const [editingUsername, setEditingUsername] = useState(false)
   const [editingEmail, setEditingEmail] = useState(false)
   const [tempUsername, setTempUsername] = useState("")
@@ -53,26 +55,36 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
     if (!file || !currentUser) return
 
     try {
-      setLoading(true)
-      // MOCK: Replace with custom backend upload
-      const formData = new FormData()
-      formData.append('avatar', file)
+      setUploading(true)
       
-      const res = await fetch('/api/user/avatar', {
-        method: 'POST',
-        body: formData
+      // 1. Upload directly to Supabase Storage
+      const { data, error: uploadError } = await uploadAvatar(file, currentUser.id)
+      if (uploadError || !data) throw new Error(uploadError ? String(uploadError) : 'Upload failed')
+      
+      // 2. Save the new avatar_url inside profiles table
+      const { error: updateError } = await upsertProfile({
+        id: currentUser.id,
+        avatar_url: data.url
       })
-      
-      if (!res.ok) throw new Error('Failed to upload avatar')
-      const data = await res.json()
-      
+      if (updateError) throw updateError
+
+      // 3. Reflect change on Client Store & UI state
       setCurrentUser({ ...currentUser, avatar_url: data.url })
+      
+      // Sync with local storage cached session
+      const stored = localStorage.getItem('mindsync_user')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        parsed.avatar_url = data.url
+        localStorage.setItem('mindsync_user', JSON.stringify(parsed))
+      }
+      
       toast.success("Profile photo updated successfully!")
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading avatar:', error)
-      toast.error("Failed to upload profile photo")
+      toast.error(error.message || "Failed to upload profile photo")
     } finally {
-      setLoading(false)
+      setUploading(false)
     }
   }
 
@@ -80,20 +92,32 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
     if (!currentUser) return
 
     try {
-      // MOCK: Replace with custom backend profile update
-      const res = await fetch('/api/user/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: tempUsername })
+      setLoading(true)
+      
+      // Update profile in Supabase profiles table
+      const { error } = await upsertProfile({
+        id: currentUser.id,
+        username: tempUsername
       })
-      if (!res.ok) throw new Error('Failed to update username')
+      if (error) throw error
       
       setCurrentUser({ ...currentUser, username: tempUsername })
+      
+      // Sync cached storage session
+      const stored = localStorage.getItem('mindsync_user')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        parsed.username = tempUsername
+        localStorage.setItem('mindsync_user', JSON.stringify(parsed))
+      }
+
       setEditingUsername(false)
       toast.success("Username updated successfully!")
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating username:', error)
-      toast.error("Failed to update username")
+      toast.error(error.message || "Failed to update username")
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -190,31 +214,33 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="relative">
-                        <Avatar className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 xl:w-16 xl:h-16">
+                        <Avatar className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 xl:w-16 xl:h-16 relative overflow-hidden">
                           <AvatarImage 
-                            src={currentUser?.avatar_url || "/placeholder.svg?height=48&width=48"} 
+                            src={getUserAvatarUrl(currentUser)} 
                             alt="Profile"
                             className="object-cover w-full h-full"
                           />
                           <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-medium">
                             {getUserInitials(getDisplayName())}
                           </AvatarFallback>
+                          {uploading && (
+                            <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-20">
+                              <Loader2 className="w-5 h-5 md:w-6 md:h-6 text-white animate-spin" />
+                            </div>
+                          )}
                         </Avatar>
                         <input
                           id="avatar-upload"
                           type="file"
                           accept="image/*"
                           className="hidden"
+                          disabled={uploading}
                           onChange={handleAvatarUpload}
                         />
                       </div>
                       <span className="font-medium">{getDisplayName()}</span>
                     </div>
-                    <Button variant="link" size="sm" className="text-blue-600 text-sm">
-                      <label htmlFor="avatar-upload" className="cursor-pointer">
-                        Update profile
-                      </label>
-                    </Button>
+                    {/* Custom Upload hidden - avatar generated dynamically from email */}
                   </div>
                 </div>
 

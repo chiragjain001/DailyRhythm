@@ -33,8 +33,8 @@ function badge(pct: number) {
   return               { label: 'None',       cls: 'bg-gray-100 text-gray-500'       }
 }
 
-/* ─── Skeleton ───────────────────────────────────────────────────── */
 function ChartSkeleton() {
+  const heights = [45, 65, 50, 75, 55, 80, 40];
   return (
     <Card className="rounded-3xl p-6 bg-white border-gray-100 shadow-sm">
       <div className="h-4 w-44 bg-gray-200 rounded-full mb-6 animate-pulse" />
@@ -43,7 +43,7 @@ function ChartSkeleton() {
           <div
             key={i}
             className="flex-1 rounded-full bg-gray-100 animate-pulse"
-            style={{ height: `${30 + Math.random() * 50}%`, animationDelay: `${i * 60}ms` }}
+            style={{ height: `${heights[i]}%`, animationDelay: `${i * 60}ms` }}
           />
         ))}
       </div>

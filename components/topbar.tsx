@@ -7,7 +7,7 @@ import { Home, Cog, Trophy, ChevronLeft, ChevronRight, CalendarDays, Leaf, User,
 import { Logo } from "./logo"
 import { greetingByTime, useMindmateStore } from "@/store/use-mindmate-store"
 import { format } from "date-fns"
-import { getCurrentUser, signOut, AuthUser } from "@/lib/auth-utils"
+import { getCurrentUser, signOut, AuthUser, getUserAvatarUrl } from "@/lib/auth-utils"
 import { AccountModal } from "@/components/account-modal"
 import { DataExportModal } from "@/components/data-export-modal"
 import {
@@ -31,14 +31,16 @@ export function Topbar() {
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [user, setUser] = useState<AuthUser | null>(null)
 
-  // Load user data
+  // Load user data & refresh when account modal is closed
   useEffect(() => {
-    const loadUser = async () => {
-      const currentUser = await getCurrentUser()
-      setUser(currentUser)
+    if (!accountModalOpen) {
+      const loadUser = async () => {
+        const currentUser = await getCurrentUser()
+        setUser(currentUser)
+      }
+      loadUser()
     }
-    loadUser()
-  }, [])
+  }, [accountModalOpen])
 
   const handleButtonClick = (buttonName: string) => {
     setActiveButton(buttonName === activeButton ? null : buttonName)
@@ -76,7 +78,7 @@ export function Topbar() {
 
   // Get avatar URL
   const getAvatarUrl = () => {
-    return user?.avatar_url || "/placeholder.svg?height=64&width=64"
+    return getUserAvatarUrl(user)
   }
 
   return (

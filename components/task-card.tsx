@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence, PanInfo } from "framer-motion"
-import { Check, Edit2, Trash2, Mic, GripVertical } from "lucide-react"
+import { Check, Edit2, Trash2, Briefcase, GripVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -275,7 +275,7 @@ export function TaskCard({ task, onToggleComplete, onEdit, onDelete, dragControl
                     />
                   </div>
                   <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500">
-                    <Mic className="h-3.5 w-3.5" />
+                    <Briefcase className="h-3.5 w-3.5" />
                     <span>{task.assignee ?? "—"}</span>
                     {task.time && (
                       <>
