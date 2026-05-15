@@ -22,16 +22,8 @@ export function Panel3() {
   
   const [forceUpdate, setForceUpdate] = useState(0)
 
-  // Real-time completion tracking with debug logging
+  // Real-time completion tracking
   useEffect(() => {
-    console.log('🔄 Panel3 Real-time Update:', { 
-      timestamp: new Date().toISOString(),
-      completionPercentage, 
-      totalItems, 
-      completedItems, 
-      isFullyCompleted,
-      breakdown
-    })
     setForceUpdate(prev => prev + 1)
   }, [completionPercentage, totalItems, completedItems, breakdown, isFullyCompleted])
   return (

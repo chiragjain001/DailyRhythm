@@ -197,7 +197,7 @@ const SUPABASE_ANON_KEY = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '') as s
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   if (typeof window !== 'undefined') {
     console.error(
-      '[MindSync] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.',
+      '[DailyRythm] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.',
       { hasUrl: Boolean(SUPABASE_URL), hasAnonKey: Boolean(SUPABASE_ANON_KEY) }
     );
   }

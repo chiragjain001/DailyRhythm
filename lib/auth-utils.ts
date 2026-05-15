@@ -11,8 +11,8 @@ export interface AuthUser {
   profile_completed?: boolean;
 }
 
-const TOKEN_KEY = 'mindsync_token';
-const USER_KEY = 'mindsync_user';
+const TOKEN_KEY = 'dailyrythm_token';
+const USER_KEY = 'dailyrythm_user';
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
   if (typeof window === 'undefined') return null;
@@ -28,7 +28,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   }
 
   // 2. Fall back to reading the Supabase session from cookies if available
-  //    This covers the OAuth flow where we set auth_token but not mindsync_user.
+  //    This covers the OAuth flow where we set auth_token but not dailyrythm_user.
   try {
     const { createBrowserClient } = await import('@supabase/ssr');
     const supabase = createBrowserClient(
@@ -64,11 +64,18 @@ export function setAuthSession(token: string, user: AuthUser) {
   document.cookie = `auth_token=${token}; path=/; max-age=604800; samesite=lax`;
 }
 
-export async function signOut(): Promise<void> {
+export function clearAuthSession() {
   safeStorage.removeItem(TOKEN_KEY);
   safeStorage.removeItem(USER_KEY);
+  // Clear the custom cookie
+  document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+}
 
-  // Also sign out from Supabase to invalidate the OAuth session
+export async function signOut(): Promise<void> {
+  // Optimistic UI cleanup
+  clearAuthSession();
+
+  // Background network revoke
   try {
     const { createBrowserClient } = await import('@supabase/ssr');
     const supabase = createBrowserClient(
@@ -76,15 +83,8 @@ export async function signOut(): Promise<void> {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
     await supabase.auth.signOut();
-  } catch {
-    // ignore
-  }
-
-  // Clear the custom cookie
-  document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-
-  if (typeof window !== 'undefined') {
-    window.location.href = '/auth';
+  } catch (error) {
+    console.error('Async signout network error:', error);
   }
 }
 
@@ -98,7 +98,7 @@ export async function redirectToAuth(): Promise<void> {
  * Seamlessly returns the user's profile avatar:
  * 1. Custom avatar_url (manual storage or high-res Google OAuth)
  * 2. Dynamic Gravatar via the user's email MD5 hash
- * 3. Branded high-res UI-Avatar fallback (MindSync theme)
+ * 3. Branded high-res UI-Avatar fallback (DailyRythm theme)
  */
 export function getUserAvatarUrl(user: AuthUser | null | undefined): string {
   if (!user) {
@@ -113,7 +113,7 @@ export function getUserAvatarUrl(user: AuthUser | null | undefined): string {
   const name = user.username || user.first_name || (user.email ? user.email.split('@')[0] : 'User');
   const formattedName = encodeURIComponent(name.trim());
   
-  // Branded fallback: MindSync dark blue theme
+  // Branded fallback: DailyRythm dark blue theme
   const fallback = encodeURIComponent(`https://ui-avatars.com/api/?name=${formattedName}&background=1F2F4A&color=fff&size=200&bold=true`);
 
   if (user.email) {

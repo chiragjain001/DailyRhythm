@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { Logo } from './logo';
 
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
@@ -35,13 +36,13 @@ export default function ServiceWorkerRegistration() {
               if (newWorker.state === 'installed') {
                 if (navigator.serviceWorker.controller) {
                   console.log('New service worker installed, content updated');
-                  toast.info('MindSync Update Ready!', {
-                    description: 'Tap reload to activate the latest features and designs.',
+                  toast.info(<Logo size="sm" />, {
+                    description: 'DailyRythm Update Ready! Tap reload to activate.',
                     action: {
                       label: 'Reload',
                       onClick: () => window.location.reload(),
                     },
-                    duration: Infinity, // keep visible until reload
+                    duration: Infinity,
                   });
                 } else {
                   // Content is cached for the first time

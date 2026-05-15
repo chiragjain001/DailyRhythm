@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useMindmateStore, Habit } from '@/store/use-mindmate-store';
 import { supabase } from '@/lib/supabaseClient';
+import { format } from 'date-fns';
 
 export function useSupabaseHabits() {
+  const selectedDate = useMindmateStore(state => state.selectedDate);
   const habits = useMindmateStore(state => state.habits);
   const setHabits = useMindmateStore(state => state.setHabits);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const localDateStr = format(selectedDate, 'yyyy-MM-dd');
 
   const fetchHabits = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -16,19 +20,30 @@ export function useSupabaseHabits() {
         setLoading(false);
         return;
       }
-      const { data, error } = await supabase
-        .from('habits')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      const [habitsRes, completionsRes] = await Promise.all([
+        supabase
+          .from('habits')
+          .select('*')
+          .eq('user_id', user.id)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('habit_completions')
+          .select('habit_id')
+          .eq('user_id', user.id)
+          .eq('completion_date', localDateStr)
+      ]);
+
+      if (habitsRes.error) throw habitsRes.error;
+      if (completionsRes.error) throw completionsRes.error;
       
-      if (data) {
-        const mappedHabits = data.map((h: any) => ({
+      if (habitsRes.data) {
+        const completedHabitIds = new Set((completionsRes.data || []).map(c => c.habit_id));
+        const mappedHabits = habitsRes.data.map((h: any) => ({
           ...h,
           streak: h.current_streak || 0,
-          completedToday: h.completed || false,
+          completedToday: completedHabitIds.has(h.id),
         }));
         setHabits(mappedHabits);
       }
@@ -37,28 +52,39 @@ export function useSupabaseHabits() {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [setHabits]);
+  }, [setHabits, localDateStr]);
 
   useEffect(() => {
     fetchHabits();
 
-    let channel: ReturnType<typeof supabase.channel>;
+    let habitsChannel: ReturnType<typeof supabase.channel>;
+    let completionsChannel: ReturnType<typeof supabase.channel>;
+    
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      channel = supabase
+      
+      habitsChannel = supabase
         .channel('habits_realtime')
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'habits', filter: `user_id=eq.${user.id}` },
-          () => {
-            fetchHabits(false);
-          }
+          () => fetchHabits(false)
+        )
+        .subscribe();
+        
+      completionsChannel = supabase
+        .channel('habit_completions_realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'habit_completions', filter: `user_id=eq.${user.id}` },
+          () => fetchHabits(false)
         )
         .subscribe();
     });
 
     return () => {
-      if (channel) supabase.removeChannel(channel);
+      if (habitsChannel) supabase.removeChannel(habitsChannel);
+      if (completionsChannel) supabase.removeChannel(completionsChannel);
     };
   }, [fetchHabits]);
 
@@ -74,7 +100,6 @@ export function useSupabaseHabits() {
         time: habitProps.time || '',
         current_streak: 0,
         longest_streak: 0,
-        completed: false,
       };
 
       const { data, error } = await supabase
@@ -88,7 +113,7 @@ export function useSupabaseHabits() {
         const mapped = {
           ...data,
           streak: data.current_streak || 0,
-          completedToday: data.completed || false,
+          completedToday: false,
         };
         setHabits(prev => [mapped, ...prev]);
         return mapped;
@@ -109,6 +134,7 @@ export function useSupabaseHabits() {
       
       const newCompleted = !habit.completedToday;
       const newStreak = newCompleted ? habit.streak + 1 : Math.max(0, habit.streak - 1);
+      const localDateStr = format(selectedDate, 'yyyy-MM-dd');
       
       const mappedHabit = {
         ...habit,
@@ -121,43 +147,40 @@ export function useSupabaseHabits() {
       const { error } = await supabase
         .from('habits')
         .update({
-          completed: newCompleted,
           current_streak: newStreak,
         })
         .eq('id', id);
 
       if (error) throw error;
 
-      const today = new Date().toISOString().split('T')[0];
       if (newCompleted) {
-        await supabase.from('habit_completions').insert({
+        const { error: insertError } = await supabase.from('habit_completions').upsert({
           user_id: user.id,
           habit_id: id,
-          local_date: today,
-          completion_date: today,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+          completion_date: localDateStr
+        }, {
+          onConflict: 'user_id,habit_id,completion_date'
         });
+        if (insertError) throw insertError;
       } else {
-        await supabase.from('habit_completions')
+        const { error: deleteError } = await supabase.from('habit_completions')
           .delete()
-          .match({ habit_id: id, completion_date: today, user_id: user.id });
+          .match({ user_id: user.id, habit_id: id, completion_date: localDateStr });
+        if (deleteError) throw deleteError;
       }
     } catch (err: any) {
       console.error(err);
       fetchHabits();
     }
-  }, [habits, setHabits, fetchHabits]);
+  }, [habits, setHabits, localDateStr, fetchHabits]);
 
   const deleteHabit = useCallback(async (id: string) => {
     try {
       setHabits(prev => prev.filter(h => h.id !== id));
       
-      // Delete habit completions first to satisfy foreign key constraints
-      await supabase.from('habit_completions').delete().eq('habit_id', id);
-
       const { error } = await supabase
         .from('habits')
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq('id', id);
 
       if (error) throw error;

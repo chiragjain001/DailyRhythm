@@ -2,17 +2,17 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import { LoadingProvider } from "@/contexts/loading-context"
-import { Toaster } from "sonner"
+import { Toaster } from "@/components/ui/sonner"
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration"
 import { AuthProvider } from "@/components/AuthProvider"
 export const metadata: Metadata = {
-  title: "MindSync",
-  description: "MindSync - Your productivity companion",
+  title: "DailyRythm",
+  description: "DailyRythm - Your productivity companion",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "MindSync",
+    title: "DailyRythm",
   },
   formatDetection: {
     telephone: false,
@@ -37,16 +37,25 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: "MindSync",
-    description: "MindSync - Your productivity companion",
+    title: "DailyRythm",
+    description: "DailyRythm - Your productivity companion",
     url: "https://mindsync-five.vercel.app",
-    siteName: "MindSync",
+    siteName: "DailyRythm",
+    images: [
+      {
+        url: "/mind.jpg",
+        width: 1200,
+        height: 630,
+        alt: "DailyRythm - Mental Health & Productivity",
+      },
+    ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "MindSync",
-    description: "MindSync - Your productivity companion",
+    title: "DailyRythm",
+    description: "DailyRythm - Your productivity companion",
+    images: ["/mind.jpg"],
   },
 }
 

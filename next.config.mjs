@@ -9,6 +9,17 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
+  webpack: (config, { isServer, nextRuntime, webpack }) => {
+    if (isServer && nextRuntime === 'edge') {
+      config.plugins.push(
+        new webpack.DefinePlugin({
+          'process.version': JSON.stringify(process.version),
+          'process.versions': JSON.stringify(process.versions),
+        })
+      );
+    }
+    return config;
+  },
   async headers() {
     return [
       {

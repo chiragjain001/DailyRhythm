@@ -9,6 +9,7 @@ import { getCurrentUser, setAuthSession } from '@/lib/auth-utils';
 import { getProfile, upsertProfile, checkUsernameAvailable } from '@/lib/profile';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabaseClient';
+import { Logo } from '@/components/logo';
 
 const schema = z.object({
   username: z
@@ -187,9 +188,8 @@ export default function SetupProfilePage() {
     return (
       <div className="flex items-center justify-center min-h-screen" style={{background: 'linear-gradient(90deg, #fdf6ec 0%, #f4f1fe 100%)'}}>
         <div className="text-center">
-          <div className="logo mb-4">
-            <div className="logo-icon">🧠</div>
-            <span className="logo-text">MindSync</span>
+          <div className="flex flex-col items-center mb-4">
+            <Logo size="xl" />
           </div>
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#6C63FF] mx-auto"></div>
         </div>
@@ -203,10 +203,7 @@ export default function SetupProfilePage() {
       <div className="lg:hidden relative flex items-center justify-center py-12 px-6 text-gray-800 min-h-[200px]" style={{background: 'linear-gradient(90deg, #fdf6ec 0%, #f4f1fe 100%)'}}>
         <div className="absolute inset-0"></div>
         <div className="relative z-10 text-center">
-          <div className="logo">
-            <div className="logo-icon">🧠</div>
-            <span className="logo-text">MindSync</span>
-          </div>
+          <Logo size="lg" className="mb-2" />
         </div>
       </div>
 
@@ -215,13 +212,10 @@ export default function SetupProfilePage() {
         <div className="absolute inset-0" style={{backgroundImage: 'url(/mind.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', filter: 'blur(4px)', transform: 'scale(1.1)'}}></div>
         <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-black/30"></div>
         <div className="max-w-md space-y-6 relative z-10">
-          <div className="logo">
-            <div className="logo-icon">🧠</div>
-            <span className="logo-text">MindSync</span>
-          </div>
+          <Logo size="xl" className="mb-2" />
           <div>
             <h2 className="text-2xl xl:text-3xl font-bold mb-2">Complete Your Profile</h2>
-            <p className="text-gray-700">Set up your profile to get started with MindSync.</p>
+            <p className="text-gray-700 font-medium">Set up your profile to get started with DailyRythm.</p>
           </div>
           <div className="space-y-4 mt-8">
             <div className="rounded-xl bg-white/10 backdrop-blur px-4 py-3 opacity-60">

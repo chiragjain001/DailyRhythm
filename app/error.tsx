@@ -12,7 +12,7 @@ export default function Error({
 }) {
   useEffect(() => {
     // Log the error securely to the console
-    console.error("[MindSync App Error Boundary]:", error)
+    console.error("[DailyRythm App Error Boundary]:", error)
   }, [error])
 
   return (

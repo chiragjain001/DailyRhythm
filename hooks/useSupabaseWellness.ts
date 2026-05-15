@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useMindmateStore, WellnessItem } from '@/store/use-mindmate-store';
 import { supabase } from '@/lib/supabaseClient';
+import { format } from 'date-fns';
 
 const DEFAULT_WELLNESS: Pick<WellnessItem, 'title' | 'completed'>[] = [
   { title: 'Deep breathing', completed: false },
@@ -14,10 +15,13 @@ const DEFAULT_WELLNESS: Pick<WellnessItem, 'title' | 'completed'>[] = [
 const REQUIRED_GOAL = 4;
 
 export function useSupabaseWellness() {
+  const selectedDate = useMindmateStore(state => state.selectedDate);
   const wellness = useMindmateStore(state => state.wellness);
   const setWellness = useMindmateStore(state => state.setWellness);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const localDateStr = format(selectedDate, 'yyyy-MM-dd');
 
   const fetchWellness = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -27,14 +31,26 @@ export function useSupabaseWellness() {
         setLoading(false);
         return;
       }
-      const { data, error } = await supabase
-        .from('wellness_checklist')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true });
 
-      if (error) throw error;
+      const [checklistRes, completionsRes] = await Promise.all([
+        supabase
+          .from('wellness_checklist')
+          .select('*')
+          .eq('user_id', user.id)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('wellness_completions')
+          .select('wellness_id')
+          .eq('user_id', user.id)
+          .eq('completion_date', localDateStr)
+      ]);
+
+      if (checklistRes.error) throw checklistRes.error;
+      if (completionsRes.error) throw completionsRes.error;
       
+      const data = checklistRes.data;
+
       if (data && data.length > 0) {
         // --- Auto Self-Healing Deduplication ---
         const seen = new Set<string>();
@@ -51,9 +67,12 @@ export function useSupabaseWellness() {
           }
         });
 
+        const completedWellnessIds = new Set((completionsRes.data || []).map(c => c.wellness_id));
+
         const mapped = uniqueData.map((w: any) => ({
           ...w,
           title: w.activity,
+          completed: completedWellnessIds.has(w.id),
         }));
         setWellness(mapped);
 
@@ -61,11 +80,11 @@ export function useSupabaseWellness() {
         if (duplicatesToDelete.length > 0) {
           supabase
             .from('wellness_checklist')
-            .delete()
+            .update({ deleted_at: new Date().toISOString() })
             .in('id', duplicatesToDelete)
             .then(({ error }) => {
               if (!error) {
-                console.log(`[Self-Healing] Successfully pruned ${duplicatesToDelete.length} duplicate wellness checklist items.`);
+                console.log(`[Self-Healing] Successfully archived ${duplicatesToDelete.length} duplicate wellness checklist items.`);
               }
             });
         }
@@ -74,7 +93,6 @@ export function useSupabaseWellness() {
         const toInsert = DEFAULT_WELLNESS.map(item => ({
           user_id: user.id,
           activity: item.title,
-          completed: item.completed,
         }));
         
         const { data: insertedData, error: insertError } = await supabase
@@ -87,6 +105,7 @@ export function useSupabaseWellness() {
           const mapped = insertedData.map((w: any) => ({
             ...w,
             title: w.activity,
+            completed: false,
           }));
           setWellness(mapped);
         }
@@ -96,28 +115,39 @@ export function useSupabaseWellness() {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [setWellness]);
+  }, [setWellness, localDateStr]);
 
   useEffect(() => {
     fetchWellness();
 
-    let channel: ReturnType<typeof supabase.channel>;
+    let checklistChannel: ReturnType<typeof supabase.channel>;
+    let completionsChannel: ReturnType<typeof supabase.channel>;
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      channel = supabase
+      
+      checklistChannel = supabase
         .channel('wellness_realtime')
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'wellness_checklist', filter: `user_id=eq.${user.id}` },
-          () => {
-            fetchWellness(false);
-          }
+          () => fetchWellness(false)
+        )
+        .subscribe();
+        
+      completionsChannel = supabase
+        .channel('wellness_completions_realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'wellness_completions', filter: `user_id=eq.${user.id}` },
+          () => fetchWellness(false)
         )
         .subscribe();
     });
 
     return () => {
-      if (channel) supabase.removeChannel(channel);
+      if (checklistChannel) supabase.removeChannel(checklistChannel);
+      if (completionsChannel) supabase.removeChannel(completionsChannel);
     };
   }, [fetchWellness]);
 
@@ -130,34 +160,31 @@ export function useSupabaseWellness() {
       if (!item) return;
       
       const newCompleted = !item.completed;
+      const localDateStr = format(selectedDate, 'yyyy-MM-dd');
 
       // Optimistic
       setWellness(prev => prev.map(w => w.id === id ? { ...w, completed: newCompleted } : w));
 
-      const { error } = await supabase
-        .from('wellness_checklist')
-        .update({ completed: newCompleted })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      const today = new Date().toISOString().split('T')[0];
       if (newCompleted) {
-        await supabase.from('wellness_completions').insert({
+        const { error } = await supabase.from('wellness_completions').upsert({
           user_id: user.id,
-          activity_title: item.title,
-          completion_date: today
+          wellness_id: id,
+          completion_date: localDateStr
+        }, {
+          onConflict: 'user_id,wellness_id,completion_date'
         });
+        if (error) throw error;
       } else {
-        await supabase.from('wellness_completions')
+        const { error } = await supabase.from('wellness_completions')
           .delete()
-          .match({ activity_title: item.title, completion_date: today, user_id: user.id });
+          .match({ wellness_id: id, completion_date: localDateStr, user_id: user.id });
+        if (error) throw error;
       }
     } catch (err: any) {
       console.error(err);
       fetchWellness();
     }
-  }, [wellness, setWellness, fetchWellness]);
+  }, [wellness, setWellness, localDateStr, fetchWellness]);
 
   const rawCompletedCount = wellness.filter(item => item.completed).length;
   const cappedCompletedCount = Math.min(rawCompletedCount, REQUIRED_GOAL);

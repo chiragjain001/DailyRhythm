@@ -1,6 +1,6 @@
 {
-  "name": "MindSync - Your Mental Health Companion",
-  "short_name": "MindSync",
+  "name": "DailyRythm - Your Mental Health Companion",
+  "short_name": "DailyRythm",
   "description": "AI-powered mental health support and productivity companion",
   "start_url": "/",
   "display": "standalone",

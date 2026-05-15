@@ -93,7 +93,7 @@ export function Topbar() {
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-2">
           {/* Left section */}
           <div className="flex flex-1 items-center gap-6">
-            <Logo />
+            <Logo size="lg" />
             <div className="rounded-full bg-neutral-100 px-3 py-1 text-sm text-neutral-700 flex items-center gap-3">
               <CalendarDays className="inline h-4 w-4 text-neutral-500" />
               <span className="text-neutral-700">{dateLabel}</span>

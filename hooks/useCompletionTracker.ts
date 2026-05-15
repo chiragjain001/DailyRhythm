@@ -129,14 +129,7 @@ export function useCompletionTracker(): CompletionData {
   // Log completion updates for debugging
   useEffect(() => {
     if (!completionData.isLoading && completionData.hasItems) {
-      console.log('🔄 Completion Update:', {
-        timestamp: new Date().toISOString(),
-        totalItems: completionData.totalItems,
-        completedItems: completionData.completedItems,
-        completionPercentage: completionData.completionPercentage,
-        breakdown: completionData.breakdown,
-        isFullyCompleted: completionData.isFullyCompleted
-      });
+      // Logic remained for hook dependency if needed, but log removed
     }
   }, [completionData]);
   
@@ -152,7 +145,6 @@ export function useCompletionUpdater() {
   
   const triggerUpdate = useCallback(() => {
     setTrigger(prev => prev + 1);
-    console.log('🔄 Manual completion update triggered');
   }, []);
   
   return { triggerUpdate };
