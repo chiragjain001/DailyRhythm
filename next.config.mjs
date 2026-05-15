@@ -9,6 +9,7 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
+  turbopack: {},
   webpack: (config, { isServer, nextRuntime, webpack }) => {
     if (isServer && nextRuntime === 'edge') {
       config.plugins.push(
