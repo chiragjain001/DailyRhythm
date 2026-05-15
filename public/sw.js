@@ -1,5 +1,5 @@
-// Enhanced Service Worker for DailyRythm PWA
-const CACHE_NAME = 'dailyrythm-v1.0.1';
+// Enhanced Service Worker for DailyRhythm PWA
+const CACHE_NAME = 'dailyrhythm-v1.0.1';
 const staticAssets = [
   '/manifest.json',
   '/icons/icon-192x192.png',

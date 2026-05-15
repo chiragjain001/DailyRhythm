@@ -37,7 +37,7 @@ export default function ServiceWorkerRegistration() {
                 if (navigator.serviceWorker.controller) {
                   console.log('New service worker installed, content updated');
                   toast.info(<Logo size="sm" />, {
-                    description: 'DailyRythm Update Ready! Tap reload to activate.',
+                    description: 'DailyRhythm Update Ready! Tap reload to activate.',
                     action: {
                       label: 'Reload',
                       onClick: () => window.location.reload(),

@@ -6,13 +6,13 @@ import { Toaster } from "@/components/ui/sonner"
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration"
 import { AuthProvider } from "@/components/AuthProvider"
 export const metadata: Metadata = {
-  title: "DailyRythm",
-  description: "DailyRythm - Your productivity companion",
+  title: "DailyRhythm",
+  description: "DailyRhythm - Your productivity companion",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "DailyRythm",
+    title: "DailyRhythm",
   },
   formatDetection: {
     telephone: false,
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     icon: "/icons/icon-192x192.png",
     apple: "/icons/apple-icon-180.png",
   },
-  metadataBase: new URL("https://mindsync-five.vercel.app"),
+  metadataBase: new URL("https://dailyrhythms.vercel.app"),
   alternates: {
     canonical: "/",
   },
@@ -37,24 +37,25 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: "DailyRythm",
-    description: "DailyRythm - Your productivity companion",
-    url: "https://mindsync-five.vercel.app",
-    siteName: "DailyRythm",
+    type: "website",
+    locale: "en_US",
+    url: "https://dailyrhythms.vercel.app",
+    title: "DailyRhythm",
+    description: "DailyRhythm - Your productivity companion",
+    siteName: "DailyRhythm",
     images: [
       {
-        url: "/mind.jpg",
-        width: 1200,
-        height: 630,
-        alt: "DailyRythm - Mental Health & Productivity",
+        url: "/icons/icon-512x512.png",
+        width: 512,
+        height: 512,
+        alt: "DailyRhythm - Mental Health & Productivity",
       },
     ],
-    type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "DailyRythm",
-    description: "DailyRythm - Your productivity companion",
+    title: "DailyRhythm",
+    description: "DailyRhythm - Your productivity companion",
     images: ["/mind.jpg"],
   },
 }

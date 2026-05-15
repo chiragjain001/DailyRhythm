@@ -11,8 +11,8 @@ export interface AuthUser {
   profile_completed?: boolean;
 }
 
-const TOKEN_KEY = 'dailyrythm_token';
-const USER_KEY = 'dailyrythm_user';
+const TOKEN_KEY = 'dailyrhythm_token';
+const USER_KEY = 'dailyrhythm_user';
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
   if (typeof window === 'undefined') return null;
@@ -113,7 +113,7 @@ export function getUserAvatarUrl(user: AuthUser | null | undefined): string {
   const name = user.username || user.first_name || (user.email ? user.email.split('@')[0] : 'User');
   const formattedName = encodeURIComponent(name.trim());
   
-  // Branded fallback: DailyRythm dark blue theme
+  // Branded fallback: DailyRhythm dark blue theme
   const fallback = encodeURIComponent(`https://ui-avatars.com/api/?name=${formattedName}&background=1F2F4A&color=fff&size=200&bold=true`);
 
   if (user.email) {

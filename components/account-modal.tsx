@@ -72,11 +72,11 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
       setCurrentUser({ ...currentUser, avatar_url: data.url })
       
       // Sync with local storage cached session
-      const stored = localStorage.getItem('dailyrythm_user')
+      const stored = localStorage.getItem('dailyrhythm_user')
       if (stored) {
         const parsed = JSON.parse(stored)
         parsed.avatar_url = data.url
-        localStorage.setItem('dailyrythm_user', JSON.stringify(parsed))
+        localStorage.setItem('dailyrhythm_user', JSON.stringify(parsed))
       }
       
       toast.success("Profile photo updated successfully!")
@@ -104,11 +104,11 @@ export function AccountModal({ open, onOpenChange }: AccountModalProps) {
       setCurrentUser({ ...currentUser, username: tempUsername })
       
       // Sync cached storage session
-      const stored = localStorage.getItem('dailyrythm_user')
+      const stored = localStorage.getItem('dailyrhythm_user')
       if (stored) {
         const parsed = JSON.parse(stored)
         parsed.username = tempUsername
-        localStorage.setItem('dailyrythm_user', JSON.stringify(parsed))
+        localStorage.setItem('dailyrhythm_user', JSON.stringify(parsed))
       }
 
       setEditingUsername(false)

@@ -201,7 +201,7 @@ function AuthPageContent() {
         <div className="absolute inset-0"></div>
         <div className="relative z-10 flex flex-col items-center justify-center text-center">
           <Logo size="lg" className="mb-2" />
-          <p className="text-black/70 mt-3 max-w-sm">Transform your daily routine - achieve more, stay mindful, and track progress with DailyRythm</p>
+          <p className="text-black/70 mt-3 max-w-sm">Transform your daily routine - achieve more, stay mindful, and track progress with DailyRhythm</p>
         </div>
       </div>
 
@@ -211,7 +211,7 @@ function AuthPageContent() {
         <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-black/30"></div>
         <div className="max-w-md space-y-6 relative z-10 ">
           <Logo size="xl" className="mb-2" />
-         <p className="text-white/80 font-medium">Transform your daily routine - achieve more, stay mindful, and track progress with DailyRythm</p>
+         <p className="text-white/80 font-medium">Transform your daily routine - achieve more, stay mindful, and track progress with DailyRhythm</p>
           <div className='mt-40'>
             <h2 className="text-2xl xl:text-3xl font-bold mb-2">Get Started with Us</h2>
             <p className="text-white-700">Complete these easy steps to register your account.</p>

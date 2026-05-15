@@ -25,7 +25,7 @@ export default function NotFound() {
             404
           </h1>
           <h2 className="text-2xl font-bold">
-            Lost your <span style={{ background: 'linear-gradient(180deg, #A4DB66, #2F95A3, #3C4E91)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Daily</span><span style={{ background: 'linear-gradient(180deg, #FAD961, #F7A93B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Rythm</span>?
+            Lost your <span style={{ background: 'linear-gradient(180deg, #A4DB66, #2F95A3, #3C4E91)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Daily</span><span style={{ background: 'linear-gradient(180deg, #FAD961, #F7A93B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Rhythm</span>?
           </h2>
           <p className="text-gray-500 text-sm leading-relaxed max-w-[320px] mx-auto">
             The path you took isn't synchronized with our active thoughts. Let's find your focus again.
@@ -45,7 +45,7 @@ export default function NotFound() {
 
         {/* Bottom signature line */}
         <p className="text-xs text-gray-400 opacity-70">
-          DailyRythm &middot; Syncing your thoughts.
+          DailyRhythm &middot; Syncing your thoughts.
         </p>
       </div>
     </div>

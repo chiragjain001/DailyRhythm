@@ -215,7 +215,7 @@ export default function SetupProfilePage() {
           <Logo size="xl" className="mb-2" />
           <div>
             <h2 className="text-2xl xl:text-3xl font-bold mb-2">Complete Your Profile</h2>
-            <p className="text-gray-700 font-medium">Set up your profile to get started with DailyRythm.</p>
+            <p className="text-gray-700 font-medium">Set up your profile to get started with DailyRhythm.</p>
           </div>
           <div className="space-y-4 mt-8">
             <div className="rounded-xl bg-white/10 backdrop-blur px-4 py-3 opacity-60">
