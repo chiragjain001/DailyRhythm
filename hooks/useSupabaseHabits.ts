@@ -77,14 +77,17 @@ export function useSupabaseHabits() {
   useEffect(() => {
     fetchHabits();
 
+    let isMounted = true;
     let habitsChannel: ReturnType<typeof supabase.channel>;
     let completionsChannel: ReturnType<typeof supabase.channel>;
     
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
+      if (!user || !isMounted) return;
       
+      const instanceId = Math.random().toString(36).slice(2, 9);
+
       habitsChannel = supabase
-        .channel('habits_realtime')
+        .channel(`habits_realtime_${instanceId}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'habits', filter: `user_id=eq.${user.id}` },
@@ -93,7 +96,7 @@ export function useSupabaseHabits() {
         .subscribe();
         
       completionsChannel = supabase
-        .channel('habit_completions_realtime')
+        .channel(`habit_completions_realtime_${instanceId}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'habit_completions', filter: `user_id=eq.${user.id}` },
@@ -103,6 +106,7 @@ export function useSupabaseHabits() {
     });
 
     return () => {
+      isMounted = false;
       if (habitsChannel) supabase.removeChannel(habitsChannel);
       if (completionsChannel) supabase.removeChannel(completionsChannel);
     };

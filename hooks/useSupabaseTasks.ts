@@ -56,14 +56,19 @@ export function useSupabaseTasks() {
   useEffect(() => {
     fetchTasks();
 
+    let isMounted = true;
     let tasksChannel: ReturnType<typeof supabase.channel>;
     let completionsChannel: ReturnType<typeof supabase.channel>;
 
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
+      if (!user || !isMounted) return;
+
+      // Use unique channel names to avoid "cannot add callbacks after subscribe" errors
+      // if multiple instances of this hook are active at once.
+      const instanceId = Math.random().toString(36).slice(2, 9);
 
       tasksChannel = supabase
-        .channel('tasks_realtime')
+        .channel(`tasks_realtime_${instanceId}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'tasks', filter: `user_id=eq.${user.id}` },
@@ -72,7 +77,7 @@ export function useSupabaseTasks() {
         .subscribe();
 
       completionsChannel = supabase
-        .channel('task_completions_realtime')
+        .channel(`task_completions_realtime_${instanceId}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'task_completions', filter: `user_id=eq.${user.id}` },
@@ -82,6 +87,7 @@ export function useSupabaseTasks() {
     });
 
     return () => {
+      isMounted = false;
       if (tasksChannel) supabase.removeChannel(tasksChannel);
       if (completionsChannel) supabase.removeChannel(completionsChannel);
     };

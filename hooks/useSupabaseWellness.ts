@@ -120,23 +120,26 @@ export function useSupabaseWellness() {
   useEffect(() => {
     fetchWellness();
 
-    let checklistChannel: ReturnType<typeof supabase.channel>;
+    let isMounted = true;
+    let wellnessChannel: ReturnType<typeof supabase.channel>;
     let completionsChannel: ReturnType<typeof supabase.channel>;
 
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      
-      checklistChannel = supabase
-        .channel('wellness_realtime')
+      if (!user || !isMounted) return;
+
+      const instanceId = Math.random().toString(36).slice(2, 9);
+
+      wellnessChannel = supabase
+        .channel(`wellness_realtime_${instanceId}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'wellness_checklist', filter: `user_id=eq.${user.id}` },
           () => fetchWellness(false)
         )
         .subscribe();
-        
+
       completionsChannel = supabase
-        .channel('wellness_completions_realtime')
+        .channel(`wellness_completions_realtime_${instanceId}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'wellness_completions', filter: `user_id=eq.${user.id}` },
@@ -146,7 +149,8 @@ export function useSupabaseWellness() {
     });
 
     return () => {
-      if (checklistChannel) supabase.removeChannel(checklistChannel);
+      isMounted = false;
+      if (wellnessChannel) supabase.removeChannel(wellnessChannel);
       if (completionsChannel) supabase.removeChannel(completionsChannel);
     };
   }, [fetchWellness]);
