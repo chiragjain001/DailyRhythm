@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { safeSupabase } from "@/lib/supabaseClient";
-import { setAuthSession, clearAuthSession } from "@/lib/auth-utils";
+import { setAuthSession, clearAuthSession, getCachedUser } from "@/lib/auth-utils";
 import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import { Logo } from "./logo";
@@ -13,8 +13,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Initial session check
-    safeSupabase.auth.getSession().then(({ data: { session } }) => {
+    // 1. Initial optimistic check (Client only, after hydration)
+    const cachedUser = getCachedUser();
+    if (cachedUser) {
+      setIsInitialized(true);
+    }
+
+    // 2. Background session check
+    safeSupabase.auth.getSession().then(({ data: { session }, error }) => {
       if (session) {
         const user = {
           id: session.user.id,
@@ -24,6 +30,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           avatar_url: session.user.user_metadata?.avatar_url,
         };
         setAuthSession(session.access_token, user as any);
+      } else if (!error) {
+        // Only redirect if there is definitively no session (and no error like rate limiting)
+        const isProtectedRoute = ['/dashboard', '/setup-profile', '/account'].some(route => pathname?.startsWith(route));
+        if (isProtectedRoute) {
+          clearAuthSession();
+          router.replace('/auth');
+        }
       }
       setIsInitialized(true);
     });

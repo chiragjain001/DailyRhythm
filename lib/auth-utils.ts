@@ -14,6 +14,19 @@ export interface AuthUser {
 const TOKEN_KEY = 'dailyrhythm_token';
 const USER_KEY = 'dailyrhythm_user';
 
+export function getCachedUser(): AuthUser | null {
+  if (typeof window === 'undefined') return null;
+  const userStr = safeStorage.getItem(USER_KEY);
+  if (userStr) {
+    try {
+      return JSON.parse(userStr);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export async function getCurrentUser(): Promise<AuthUser | null> {
   if (typeof window === 'undefined') return null;
 

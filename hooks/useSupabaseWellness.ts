@@ -76,8 +76,8 @@ export function useSupabaseWellness() {
         }));
         setWellness(mapped);
 
-        // Clean up extra phantom rows from the DB in background
-        if (duplicatesToDelete.length > 0) {
+        // Clean up extra phantom rows from the DB in background (only on manual refresh to avoid loop)
+        if (showLoading && duplicatesToDelete.length > 0) {
           supabase
             .from('wellness_checklist')
             .update({ deleted_at: new Date().toISOString() })
@@ -166,14 +166,21 @@ export function useSupabaseWellness() {
       setWellness(prev => prev.map(w => w.id === id ? { ...w, completed: newCompleted } : w));
 
       if (newCompleted) {
-        const { error } = await supabase.from('wellness_completions').upsert({
+        const { data: existing } = await supabase.from('wellness_completions').select('id').match({
           user_id: user.id,
           wellness_id: id,
           completion_date: localDateStr
-        }, {
-          onConflict: 'user_id,wellness_id,completion_date'
-        });
-        if (error) throw error;
+        }).maybeSingle();
+
+        if (!existing) {
+          const { error } = await supabase.from('wellness_completions').insert({
+            user_id: user.id,
+            wellness_id: id,
+            activity_title: item.title,
+            completion_date: localDateStr
+          });
+          if (error) throw error;
+        }
       } else {
         const { error } = await supabase.from('wellness_completions')
           .delete()
@@ -181,7 +188,9 @@ export function useSupabaseWellness() {
         if (error) throw error;
       }
     } catch (err: any) {
-      console.error(err);
+      const errorMsg = err?.message || 'Failed to update wellness activity';
+      console.warn('Wellness update failed:', errorMsg);
+      // Revert optimistic update by refetching
       fetchWellness();
     }
   }, [wellness, setWellness, localDateStr, fetchWellness]);

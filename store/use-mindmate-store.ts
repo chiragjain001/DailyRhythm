@@ -198,10 +198,12 @@ export const useMindmateStore = create<MindmateState>()(
       })),
       // Only persist non-user-specific data locally (tasks, habits, wellness are now synced to DB)
       partialize: (state) => ({
-        selectedDate: state.selectedDate,
         dailyActivities: state.dailyActivities,
         activities: state.activities,
         moods: state.moods,
+        tasks: state.tasks,
+        habits: state.habits,
+        wellness: state.wellness,
       }),
     },
   ),

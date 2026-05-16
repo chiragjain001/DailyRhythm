@@ -61,7 +61,7 @@ export function useSupabaseTasks() {
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      
+
       tasksChannel = supabase
         .channel('tasks_realtime')
         .on(
@@ -70,7 +70,7 @@ export function useSupabaseTasks() {
           () => fetchTasks(false)
         )
         .subscribe();
-        
+
       completionsChannel = supabase
         .channel('task_completions_realtime')
         .on(
@@ -119,7 +119,7 @@ export function useSupabaseTasks() {
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
     try {
       setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
-      
+
       const { error } = await supabase
         .from('tasks')
         .update(updates)
@@ -139,7 +139,7 @@ export function useSupabaseTasks() {
 
       const task = tasks.find(t => t.id === id);
       if (!task) return;
-      
+
       const newCompleted = !task.completed;
       const localDateStr = format(selectedDate, 'yyyy-MM-dd');
 
@@ -171,7 +171,7 @@ export function useSupabaseTasks() {
   const deleteTask = useCallback(async (id: string) => {
     try {
       setTasks(prev => prev.filter(t => t.id !== id));
-      
+
       const { error } = await supabase
         .from('tasks')
         .update({ deleted_at: new Date().toISOString() })

@@ -179,7 +179,7 @@ export function HabitsCard() {
                       try {
                         await toggleHabit(h.id);
                       } catch (error) {
-                        console.error('Failed to toggle habit:', error);
+                        console.warn('Failed to toggle habit:', error);
                       }
                     }}
                     onTouchStart={(e) => {

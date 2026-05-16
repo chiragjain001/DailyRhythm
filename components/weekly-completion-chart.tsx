@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card"
 import { useEffect, useState, useRef } from "react"
 import { useWeeklyCompletionData } from "@/hooks/useWeeklyCompletionData"
 import type { WeeklyDayData } from "@/hooks/useWeeklyCompletionData"
+import { useCompletionTracker } from "@/hooks/useCompletionTracker"
 
 /* ─── tiny colour scale ──────────────────────────────────────────── */
 function barGradient(pct: number, isToday: boolean, isFuture: boolean) {
@@ -114,7 +115,9 @@ function Tooltip({ data, visible, x, y }: TooltipProps) {
 
 /* ─── Main chart ─────────────────────────────────────────────────── */
 export function WeeklyCompletionChart() {
-  const { weekData, loading, error } = useWeeklyCompletionData()
+  const { weekData: dbWeekData, loading, error } = useWeeklyCompletionData()
+  const currentDayTracker = useCompletionTracker()
+  
   const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; data: WeeklyDayData | null }>({
     visible: false, x: 0, y: 0, data: null
   })
@@ -125,6 +128,23 @@ export function WeeklyCompletionChart() {
     const t = setTimeout(() => setMounted(true), 80)
     return () => clearTimeout(t)
   }, [])
+
+  // Sync today's data with the overall tracker for perfect consistency
+  const weekData = dbWeekData.map(day => {
+    if (day.isCurrentDay && !currentDayTracker.isLoading) {
+      return {
+        ...day,
+        completedTasks: currentDayTracker.breakdown.tasks.completed,
+        totalTasks: currentDayTracker.breakdown.tasks.total,
+        completedHabits: currentDayTracker.breakdown.habits.completed,
+        totalHabits: currentDayTracker.breakdown.habits.total,
+        completedWellness: currentDayTracker.breakdown.wellness.completed,
+        totalWellness: currentDayTracker.breakdown.wellness.total,
+        completionPercentage: currentDayTracker.completionPercentage
+      }
+    }
+    return day
+  })
 
   const showTip = (e: React.MouseEvent, day: WeeklyDayData) => {
     if (hideTimer.current) clearTimeout(hideTimer.current)
@@ -146,8 +166,7 @@ export function WeeklyCompletionChart() {
     : 0
   const bestDay      = activeDays.reduce<WeeklyDayData | null>((best, d) =>
     !best || d.completionPercentage > best.completionPercentage ? d : best, null)
-  const todayData    = weekData.find(d => d.isCurrentDay)
-  const todayPct     = todayData?.completionPercentage ?? 0
+  const todayPct     = currentDayTracker.completionPercentage
   const { label: todayLabel, cls: todayCls } = badge(todayPct)
 
   return (

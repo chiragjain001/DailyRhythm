@@ -31,14 +31,14 @@ export interface WeeklyDayData {
 export function useWeeklyCompletionData() {
   const [weekData, setWeekData] = useState<WeeklyDayData[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Keep track of the latest fetch request ID to handle network race conditions
   const fetchIdRef = useRef(0);
 
   const fetchData = useCallback(async () => {
     const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
-    
+
     try {
       const now = new Date();
       const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
@@ -46,18 +46,18 @@ export function useWeeklyCompletionData() {
       const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       // If a newer fetch has started while we were getting the user, stop immediately
       if (currentFetchId !== fetchIdRef.current) return;
 
       let dbTasks: any[] = [];
       let dbHabits: any[] = [];
       let dbWellness: any[] = [];
-      
+
       let rawTasks: any[] = [];
       let rawHabits: any[] = [];
       let rawWellness: any[] = [];
-      
+
       if (user) {
         const weekStartStr = format(weekStart, 'yyyy-MM-dd');
         const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
@@ -70,14 +70,14 @@ export function useWeeklyCompletionData() {
           supabase.from('habits').select('id, created_at, deleted_at').eq('user_id', user.id),
           supabase.from('wellness_checklist').select('id, created_at, deleted_at').eq('user_id', user.id)
         ]);
-        
+
         // If a newer fetch started while we were waiting for the database, abort
         if (currentFetchId !== fetchIdRef.current) return;
 
         dbTasks = tRes.data || [];
         dbHabits = hRes.data || [];
         dbWellness = wRes.data || [];
-        
+
         rawTasks = rawTasksRes.data || [];
         rawHabits = rawHabitsRes.data || [];
         rawWellness = rawWellnessRes.data || [];
@@ -110,26 +110,26 @@ export function useWeeklyCompletionData() {
           completedTasks = compMap[dateStr]?.t || 0;
           completedHabits = compMap[dateStr]?.h || 0;
           completedWellness = Math.min(compMap[dateStr]?.w || 0, 4);
-          
+
           // Dynamic totals: only count items that existed on or before this day and weren't deleted
           const dayEnd = endOfDay(date);
-          
+
           let dayTotalTasks = rawTasks.filter(t => {
-             const createdAt = new Date(t.created_at);
-             const deletedAt = t.deleted_at ? new Date(t.deleted_at) : null;
-             return createdAt <= dayEnd && (!deletedAt || deletedAt > dayEnd);
+            const createdAt = new Date(t.created_at);
+            const deletedAt = t.deleted_at ? new Date(t.deleted_at) : null;
+            return createdAt <= dayEnd && (!deletedAt || deletedAt > dayEnd);
           }).length;
-          
+
           let dayTotalHabits = rawHabits.filter(h => {
-             const createdAt = new Date(h.created_at);
-             const deletedAt = h.deleted_at ? new Date(h.deleted_at) : null;
-             return createdAt <= dayEnd && (!deletedAt || deletedAt > dayEnd);
+            const createdAt = new Date(h.created_at);
+            const deletedAt = h.deleted_at ? new Date(h.deleted_at) : null;
+            return createdAt <= dayEnd && (!deletedAt || deletedAt > dayEnd);
           }).length;
-          
+
           let dayTotalWellness = rawWellness.filter(w => {
-             const createdAt = new Date(w.created_at);
-             const deletedAt = w.deleted_at ? new Date(w.deleted_at) : null;
-             return createdAt <= dayEnd && (!deletedAt || deletedAt > dayEnd);
+            const createdAt = new Date(w.created_at);
+            const deletedAt = w.deleted_at ? new Date(w.deleted_at) : null;
+            return createdAt <= dayEnd && (!deletedAt || deletedAt > dayEnd);
           }).length;
 
           // Ensure total isn't accidentally smaller than completed due to deleted items
@@ -188,17 +188,17 @@ export function useWeeklyCompletionData() {
 
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      
+
       const config = { event: '*' as const, schema: 'public', filter: `user_id=eq.${user.id}` };
-      
+
       channel1 = supabase.channel('task_completions_graph')
         .on('postgres_changes', { ...config, table: 'task_completions' }, () => fetchData())
         .subscribe();
-        
+
       channel2 = supabase.channel('habit_completions_graph')
         .on('postgres_changes', { ...config, table: 'habit_completions' }, () => fetchData())
         .subscribe();
-        
+
       channel3 = supabase.channel('wellness_completions_graph')
         .on('postgres_changes', { ...config, table: 'wellness_completions' }, () => fetchData())
         .subscribe();

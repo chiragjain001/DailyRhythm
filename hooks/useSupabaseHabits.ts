@@ -21,6 +21,10 @@ export function useSupabaseHabits() {
         return;
       }
 
+      const yesterday = new Date(selectedDate);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = format(yesterday, 'yyyy-MM-dd');
+
       const [habitsRes, completionsRes] = await Promise.all([
         supabase
           .from('habits')
@@ -30,21 +34,37 @@ export function useSupabaseHabits() {
           .order('created_at', { ascending: false }),
         supabase
           .from('habit_completions')
-          .select('habit_id')
+          .select('habit_id, completion_date')
           .eq('user_id', user.id)
-          .eq('completion_date', localDateStr)
+          .in('completion_date', [localDateStr, yesterdayStr])
       ]);
 
       if (habitsRes.error) throw habitsRes.error;
       if (completionsRes.error) throw completionsRes.error;
       
       if (habitsRes.data) {
-        const completedHabitIds = new Set((completionsRes.data || []).map(c => c.habit_id));
-        const mappedHabits = habitsRes.data.map((h: any) => ({
-          ...h,
-          streak: h.current_streak || 0,
-          completedToday: completedHabitIds.has(h.id),
-        }));
+        const completions = completionsRes.data || [];
+        const todayCompletedIds = new Set(completions.filter(c => c.completion_date === localDateStr).map(c => c.habit_id));
+        const yesterdayCompletedIds = new Set(completions.filter(c => c.completion_date === yesterdayStr).map(c => c.habit_id));
+        
+        const mappedHabits = habitsRes.data.map((h: any) => {
+          const completedToday = todayCompletedIds.has(h.id);
+          const completedYesterday = yesterdayCompletedIds.has(h.id);
+          let streak = h.current_streak || 0;
+
+          // Enforce 24-hour gap rule: if not completed today AND not completed yesterday, the streak is broken
+          if (!completedToday && !completedYesterday && streak > 0) {
+            streak = 0;
+            // Update db async to reflect broken streak
+            supabase.from('habits').update({ current_streak: 0 }).eq('id', h.id).then();
+          }
+
+          return {
+            ...h,
+            streak,
+            completedToday,
+          };
+        });
         setHabits(mappedHabits);
       }
     } catch (err: any) {
@@ -119,7 +139,7 @@ export function useSupabaseHabits() {
         return mapped;
       }
     } catch (err: any) {
-      console.error(err);
+      console.warn('Add habit failed:', err?.message || err);
       return null;
     }
   }, [setHabits]);
@@ -133,7 +153,15 @@ export function useSupabaseHabits() {
       if (!habit) return;
       
       const newCompleted = !habit.completedToday;
-      const newStreak = newCompleted ? habit.streak + 1 : Math.max(0, habit.streak - 1);
+      
+      // Calculate true streak (add if newly marked, subtract if unmarking)
+      let newStreak = habit.streak;
+      if (newCompleted) {
+        newStreak = habit.streak + 1;
+      } else {
+        newStreak = Math.max(0, habit.streak - 1);
+      }
+      
       const localDateStr = format(selectedDate, 'yyyy-MM-dd');
       
       const mappedHabit = {
@@ -154,14 +182,22 @@ export function useSupabaseHabits() {
       if (error) throw error;
 
       if (newCompleted) {
-        const { error: insertError } = await supabase.from('habit_completions').upsert({
+        // Safe insert logic bypassing unique constraint requirement
+        const { data: existing } = await supabase.from('habit_completions').select('id').match({
           user_id: user.id,
           habit_id: id,
           completion_date: localDateStr
-        }, {
-          onConflict: 'user_id,habit_id,completion_date'
-        });
-        if (insertError) throw insertError;
+        }).maybeSingle();
+
+        if (!existing) {
+          const { error: insertError } = await supabase.from('habit_completions').insert({
+            user_id: user.id,
+            habit_id: id,
+            completion_date: localDateStr,
+            local_date: localDateStr
+          });
+          if (insertError) throw insertError;
+        }
       } else {
         const { error: deleteError } = await supabase.from('habit_completions')
           .delete()
@@ -169,7 +205,9 @@ export function useSupabaseHabits() {
         if (deleteError) throw deleteError;
       }
     } catch (err: any) {
-      console.error(err);
+      const errorMsg = err?.message || 'Failed to update habit';
+      console.warn('Habit update failed:', errorMsg);
+      // Revert optimistic update by refetching
       fetchHabits();
     }
   }, [habits, setHabits, localDateStr, fetchHabits]);
@@ -185,7 +223,7 @@ export function useSupabaseHabits() {
 
       if (error) throw error;
     } catch (err: any) {
-      console.error(err);
+      console.warn('Delete habit failed:', err?.message || err);
       fetchHabits();
     }
   }, [setHabits, fetchHabits]);
